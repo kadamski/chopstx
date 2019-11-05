@@ -23,7 +23,7 @@
  *
  * Here is RISC-V calling convention.
  *
- * Register   ABI name   description     saver   other usage
+ * Register   ABI name   Description     Saver   other usage
  * x0         zero       0, hard-wired   --
  * x1         ra         return address  caller
  * x2         sp         stack pointer   callEE
@@ -45,9 +45,14 @@
  *
  * We use the first entry, reg[0], to store PC, because x0 is always 0,
  * no need to save/restore it.
+ *
+ * Core specific machine status information is saved into the last
+ * entry, MACHINE_STATUS.  For Bumblebee core, it is composed by bits
+ * of mstatus and msubm.
  */
 struct tcontext {
   uint32_t reg[32];
+  uint32_t machine_status;
 };
 
 typedef struct tcontext tcontext_t;
