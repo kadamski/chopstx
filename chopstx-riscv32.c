@@ -182,6 +182,7 @@ chx_set_intr_prio (uint8_t irq_num)
 }
 
 static void __attribute__ ((naked)) chx_handle_intr (void);
+static void __attribute__ ((naked)) chx_handle_timer (void);
 static void __attribute__ ((naked)) exception_handler (void);
 
 /* FIXME: Probably name change?  It's not only priority but Interrupt
@@ -397,7 +398,7 @@ chopstx_create_arch (uintptr_t stack_addr, size_t stack_size,
 }
 
 
-static struct chx_thread *
+static struct chx_thread * __attribute__ ((noinline))
 chx_get_intr_thread (void)
 {
   struct chx_pq *p;
@@ -442,85 +443,9 @@ chx_get_intr_thread (void)
   return NULL;
 }
 
-static void __attribute__ ((naked))
-chx_handle_intr (void)
+static void __attribute__ ((naked,noinline))
+involuntary_context_switch (struct chx_thread *tp_next)
 {
-  register struct chx_thread *tp_next asm ("a0");
-
-  /*
-   * stack setup to __main_stack_end__ 
-   * save registers.
-   */
-  asm volatile (
-	"csrrw	sp,mscratch,sp\n\t" /* SP to MSCRATCH, thread pointer into SP */
-	"# Check if it is IDLE thread\n\t"
-	"bnez	sp,0f\n\t"
-	"csrw	mscratch,sp\n\t"    /* Recover MSCRATCH, the thread pointer */
-	"mv	tp,zero\n\t"
-	"j	1f\n"
-    "0:\n\t"
-	"sw	tp,20+16(sp)\n\t"   /* Application is free to other use of TP */
-	"mv	tp,sp\n\t"          /* TP is now the thread pointer */
-	"sw	ra,20+4(tp)\n\t"
-	"sw	gp,20+12(tp)\n\t"
-	"sw	t0,20+20(tp)\n\t"
-	"sw	t1,20+24(tp)\n\t"
-	"sw	t2,20+28(tp)\n\t"
-	"sw	a0,20+40(tp)\n\t"
-	"sw	a1,20+44(tp)\n\t"
-	"sw	a2,20+48(tp)\n\t"
-	"sw	a3,20+52(tp)\n\t"
-	"sw	a4,20+56(tp)\n\t"
-	"sw	a5,20+60(tp)\n\t"
-	"sw	a6,20+64(tp)\n\t"
-	"sw	a7,20+68(tp)\n\t"
-	"sw	t3,20+112(tp)\n\t"
-	"sw	t4,20+116(tp)\n\t"
-	"sw	t5,20+120(tp)\n\t"
-	"sw	t6,20+124(tp)\n\t"
-	/**/
-	"csrr	t0,mepc\n\t"
-	"sw	t0,20+0(tp)\n\t"
-	/**/
-	"csrrw	sp,mscratch,tp\n\t" /* TP to MSCRATCH, SP_old into SP */
-	"sw	sp,20+8(tp)\n"
-	/**/
-    "1:\n\t"
-	"la	sp, __main_stack_end__");
-
-  tp_next = chx_get_intr_thread ();
-  if (!tp_next)
-    asm volatile (
-	"bnez	tp,0f\n\t"
-	"# Spawn an IDLE thread.\n\t"
-	"la	sp, __main_stack_end__\n\t"
-	"la	t0,chx_idle\n\t"
-	"csrw	mepc,t0\n\t"
-	"mret\n"
-    "0:\n\t"
-	"# Restore registers\n\t"
-	"lw	ra,20+4(tp)\n\t"
-	"lw	sp,20+8(tp)\n\t"
-	"lw	gp,20+12(tp)\n\t"
-	"lw	t0,20+20(tp)\n\t"
-	"lw	t1,20+24(tp)\n\t"
-	"lw	t2,20+28(tp)\n\t"
-	"lw	a0,20+40(tp)\n\t"
-	"lw	a1,20+44(tp)\n\t"
-	"lw	a2,20+48(tp)\n\t"
-	"lw	a3,20+52(tp)\n\t"
-	"lw	a4,20+56(tp)\n\t"
-	"lw	a5,20+60(tp)\n\t"
-	"lw	a6,20+64(tp)\n\t"
-	"lw	a7,20+68(tp)\n\t"
-	"lw	t3,20+112(tp)\n\t"
-	"lw	t4,20+116(tp)\n\t"
-	"lw	t5,20+120(tp)\n\t"
-	"lw	t6,20+124(tp)\n\t"
-	"lw	tp,20+16(tp)\n\t" /* Application is free to other use of TP */
-	"mret");
-
-  /* Here, it's involuntary context switch.  */
   asm volatile (
 	"beqz	tp,0f\n\t"
 	"# Save registers\n\t"
@@ -612,5 +537,183 @@ chx_handle_intr (void)
 	"lw	t2,20+28(tp)\n\t"
 	"lw	tp,20+16(tp)\n\t" /* Application is free to other use of TP */
 	"mret"
-	: /* no output */ : "r" (tp_next));
+	: /* no output */ : "r" (tp_next) : "memory");
+}
+
+/*
+ * Note: Examine the assembler output carefully, because it has
+ * ((naked)) attribute
+ */
+static void
+chx_handle_intr (void)
+{
+  struct chx_thread *tp_next;
+
+  /*
+   * stack setup to __main_stack_end__ 
+   * save registers.
+   */
+  asm volatile (
+	"csrrw	sp,mscratch,sp\n\t" /* SP to MSCRATCH, thread pointer into SP */
+	"# Check if it is IDLE thread\n\t"
+	"bnez	sp,0f\n\t"
+	"csrw	mscratch,sp\n\t"    /* Recover MSCRATCH, the thread pointer */
+	"mv	tp,zero\n\t"
+	"j	1f\n"
+    "0:\n\t"
+	"sw	tp,20+16(sp)\n\t"   /* Application is free to other use of TP */
+	"mv	tp,sp\n\t"          /* TP is now the thread pointer */
+	"sw	ra,20+4(tp)\n\t"
+	"sw	gp,20+12(tp)\n\t"
+	"sw	t0,20+20(tp)\n\t"
+	"sw	t1,20+24(tp)\n\t"
+	"sw	t2,20+28(tp)\n\t"
+	"sw	a0,20+40(tp)\n\t"
+	"sw	a1,20+44(tp)\n\t"
+	"sw	a2,20+48(tp)\n\t"
+	"sw	a3,20+52(tp)\n\t"
+	"sw	a4,20+56(tp)\n\t"
+	"sw	a5,20+60(tp)\n\t"
+	"sw	a6,20+64(tp)\n\t"
+	"sw	a7,20+68(tp)\n\t"
+	"sw	t3,20+112(tp)\n\t"
+	"sw	t4,20+116(tp)\n\t"
+	"sw	t5,20+120(tp)\n\t"
+	"sw	t6,20+124(tp)\n\t"
+	/**/
+	"csrr	t0,mepc\n\t"
+	"sw	t0,20+0(tp)\n\t"
+	/**/
+	"csrrw	sp,mscratch,tp\n\t" /* TP to MSCRATCH, SP_old into SP */
+	"sw	sp,20+8(tp)\n"
+	/**/
+    "1:\n\t"
+	"la	sp, __main_stack_end__");
+
+  tp_next = chx_get_intr_thread ();
+  if (!tp_next)
+    asm volatile (
+	"bnez	tp,0f\n\t"
+	"# Spawn an IDLE thread.\n\t"
+	"la	sp, __main_stack_end__\n\t"
+	"la	t0,chx_idle\n\t"
+	"csrw	mepc,t0\n\t"
+	"mret\n"
+    "0:\n\t"
+	"# Restore registers\n\t"
+	"lw	ra,20+4(tp)\n\t"
+	"lw	sp,20+8(tp)\n\t"
+	"lw	gp,20+12(tp)\n\t"
+	"lw	t0,20+20(tp)\n\t"
+	"lw	t1,20+24(tp)\n\t"
+	"lw	t2,20+28(tp)\n\t"
+	"lw	a0,20+40(tp)\n\t"
+	"lw	a1,20+44(tp)\n\t"
+	"lw	a2,20+48(tp)\n\t"
+	"lw	a3,20+52(tp)\n\t"
+	"lw	a4,20+56(tp)\n\t"
+	"lw	a5,20+60(tp)\n\t"
+	"lw	a6,20+64(tp)\n\t"
+	"lw	a7,20+68(tp)\n\t"
+	"lw	t3,20+112(tp)\n\t"
+	"lw	t4,20+116(tp)\n\t"
+	"lw	t5,20+120(tp)\n\t"
+	"lw	t6,20+124(tp)\n\t"
+	"lw	tp,20+16(tp)\n\t" /* Application is free to other use of TP */
+	"mret");
+
+   asm volatile (
+	"j	involuntary_context_switch"
+        : /* no output */);
+}
+
+struct chx_thread * chx_timer_expired (void);
+/*
+ * Exactly same control structure as chx_handle_intr.
+ * Instead of chx_get_intr_thread, call chx_timer_expired.
+ *
+ * Note: Examine the assembler output carefully, because it has
+ * ((naked)) attribute
+ */
+static void
+chx_handle_timer (void)
+{
+  struct chx_thread *tp_next;
+
+  /*
+   * stack setup to __main_stack_end__ 
+   * save registers.
+   */
+  asm volatile (
+	"csrrw	sp,mscratch,sp\n\t" /* SP to MSCRATCH, thread pointer into SP */
+	"# Check if it is IDLE thread\n\t"
+	"bnez	sp,0f\n\t"
+	"csrw	mscratch,sp\n\t"    /* Recover MSCRATCH, the thread pointer */
+	"mv	tp,zero\n\t"
+	"j	1f\n"
+    "0:\n\t"
+	"sw	tp,20+16(sp)\n\t"   /* Application is free to other use of TP */
+	"mv	tp,sp\n\t"          /* TP is now the thread pointer */
+	"sw	ra,20+4(tp)\n\t"
+	"sw	gp,20+12(tp)\n\t"
+	"sw	t0,20+20(tp)\n\t"
+	"sw	t1,20+24(tp)\n\t"
+	"sw	t2,20+28(tp)\n\t"
+	"sw	a0,20+40(tp)\n\t"
+	"sw	a1,20+44(tp)\n\t"
+	"sw	a2,20+48(tp)\n\t"
+	"sw	a3,20+52(tp)\n\t"
+	"sw	a4,20+56(tp)\n\t"
+	"sw	a5,20+60(tp)\n\t"
+	"sw	a6,20+64(tp)\n\t"
+	"sw	a7,20+68(tp)\n\t"
+	"sw	t3,20+112(tp)\n\t"
+	"sw	t4,20+116(tp)\n\t"
+	"sw	t5,20+120(tp)\n\t"
+	"sw	t6,20+124(tp)\n\t"
+	/**/
+	"csrr	t0,mepc\n\t"
+	"sw	t0,20+0(tp)\n\t"
+	/**/
+	"csrrw	sp,mscratch,tp\n\t" /* TP to MSCRATCH, SP_old into SP */
+	"sw	sp,20+8(tp)\n"
+	/**/
+    "1:\n\t"
+	"la	sp, __main_stack_end__");
+
+  tp_next = chx_timer_expired ();
+  if (!tp_next)
+    asm volatile (
+	"bnez	tp,0f\n\t"
+	"# Spawn an IDLE thread.\n\t"
+	"la	sp, __main_stack_end__\n\t"
+	"la	t0,chx_idle\n\t"
+	"csrw	mepc,t0\n\t"
+	"mret\n"
+    "0:\n\t"
+	"# Restore registers\n\t"
+	"lw	ra,20+4(tp)\n\t"
+	"lw	sp,20+8(tp)\n\t"
+	"lw	gp,20+12(tp)\n\t"
+	"lw	t0,20+20(tp)\n\t"
+	"lw	t1,20+24(tp)\n\t"
+	"lw	t2,20+28(tp)\n\t"
+	"lw	a0,20+40(tp)\n\t"
+	"lw	a1,20+44(tp)\n\t"
+	"lw	a2,20+48(tp)\n\t"
+	"lw	a3,20+52(tp)\n\t"
+	"lw	a4,20+56(tp)\n\t"
+	"lw	a5,20+60(tp)\n\t"
+	"lw	a6,20+64(tp)\n\t"
+	"lw	a7,20+68(tp)\n\t"
+	"lw	t3,20+112(tp)\n\t"
+	"lw	t4,20+116(tp)\n\t"
+	"lw	t5,20+120(tp)\n\t"
+	"lw	t6,20+124(tp)\n\t"
+	"lw	tp,20+16(tp)\n\t" /* Application is free to other use of TP */
+	"mret" : : : "memory");
+
+   asm volatile (
+	"j	involuntary_context_switch"
+        : /* no output */);
 }
