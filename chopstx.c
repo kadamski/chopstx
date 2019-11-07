@@ -77,6 +77,8 @@ chx_fatal (uint32_t err_code)
 #include "chopstx-gnu-linux.h"
 #else
 //#include "chopstx-cortex-m.h"
+// Now compiling with:
+// riscv64-unknown-elf-gcc -march=rv32imac -mabi=ilp32 -Os -I /usr/local/picolibc/riscv64-unknown-elf/include -I . -DMHZ=96 -S -c chopstx.c
 #include "chopstx-riscv32.h"
 #endif
 
