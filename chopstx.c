@@ -105,7 +105,6 @@ static struct chx_queue q_join;
 static struct chx_queue q_intr;
 
 /* Forward declaration(s). */
-static void chx_request_preemption (uint16_t prio);
 static int chx_wakeup (struct chx_pq *p);
 static struct chx_thread * chx_timer_insert (struct chx_thread *tp, uint32_t usec);
 static uint32_t chx_timer_dequeue (struct chx_thread *tp);
@@ -383,7 +382,7 @@ chx_timer_dequeue (struct chx_thread *tp)
 }
 
 
-void
+struct chx_thread *
 chx_timer_expired (void)
 {
   struct chx_thread *tp;
@@ -428,7 +427,11 @@ chx_timer_expired (void)
     }
 
   chx_spin_unlock (&q_timer.lock);
-  chx_request_preemption (prio);
+
+  if (running == NULL || (uint16_t)running->prio < prio)
+    return chx_ready_pop ();
+  else
+    return NULL;
 }
 
 
