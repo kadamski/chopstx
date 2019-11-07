@@ -76,7 +76,8 @@ chx_fatal (uint32_t err_code)
 #ifdef GNU_LINUX_EMULATION
 #include "chopstx-gnu-linux.h"
 #else
-#include "chopstx-cortex-m.h"
+//#include "chopstx-cortex-m.h"
+#include "chopstx-riscv32.h"
 #endif
 
 /* ALLOW_SLEEP for the idle thread.  */
@@ -301,7 +302,8 @@ chx_ready_enqueue (struct chx_thread *tp)
 #ifdef GNU_LINUX_EMULATION
 #include "chopstx-gnu-linux.c"
 #else
-#include "chopstx-cortex-m.c"
+#include "chopstx-riscv32.c"
+//#include "chopstx-cortex-m.c"
 #endif
 
 static void

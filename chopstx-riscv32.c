@@ -1,6 +1,6 @@
 /*
  * chopstx-riscv32.c - Threads and only threads: Arch specific code
- *                     for RISC-V 32 IMAC
+ *                     for RISC-V 32 IMAC (Bumblebee core)
  *
  * Copyright (C) 2019
  *               Flying Stone Technology
@@ -28,11 +28,22 @@
  *
  */
 
+/*
+ * Define Bumblebee specific CSRs
+ */
+asm (
+	".equ	msubm,0x7c4\n\t"
+	".equ	mtvt,0x307\n\t"   /* Not used. */
+	".equ	mtvt2,0x7ec\n\t"
+	".equ	wfe,0x810\n\t"    /* Not used (yet). */
+	".equ	sleepvalue,0x811" /* Not used (yet). */
+);
+
 /* Data Memory Barrier.  */
 static void
-chx_fence (void)
+chx_dmb (void)
 {
-  asm volatile ("fence"  : : : "memory");
+  asm volatile ("fence" : : : "memory");
 }
 
 /* No saved registers on the stack.  */
@@ -40,15 +51,12 @@ chx_fence (void)
 /*
  * Constants for RISC-V.
  */
-#define REG_PC   0
-#define REG_RA   1
-#define REG_SP   2
-#define REG_GP   3
-#define REG_TP   4
+#define REG_PC    0
+#define REG_RA    1
+#define REG_SP    2
+#define REG_GP    3
+#define REG_TP    4
 #define REG_A0   10
-
-#define CPU_EXCEPTION_PRIORITY_CLEAR         0
-#define CPU_EXCEPTION_PRIORITY_INTERRUPT     1
 
 /*
  *
@@ -56,6 +64,7 @@ chx_fence (void)
 struct chx_thread *
 chx_get_running (void)
 {
+  /*TBD*/
 }
 
 
@@ -80,33 +89,45 @@ struct TIMER {
 };
 static struct TIMER *const TIMER = (struct TIMER *)0xD1000000;
 
-/*
-In RV32I, reading the 64-bit counters requires reading upper half
-twice, comparing and branching in case a carry occurs between the
-lower and upper half during a read operation
-*/
+/* In Chopstx, we only use the lower 32-bit of the timer.  */
 
 static void
 chx_systick_reset (void)
 {
-  /* TBD */
+  TIMER->mstop |= 1;
+  TIMER->mtime_hi = TIMER->mtime_lo = 0;
+  TIMER->mtimecmp_hi = TIMER->mtimecmp_lo = 0;
 }
 
+/*
+ * @ticks: 0 means to stop the timer, otherwise update the timer
+ */
 static void
 chx_systick_reload (uint32_t ticks)
 {
-  /* TBD */
+  uint32_t ticks_old;
+
+  if (!ticks)
+    TIMER->mstop |= 1;
+  TIMER->mtime_lo = 0;
+  ticks_old = TIMER->mtimecmp_lo;
+  TIMER->mtimecmp_lo = ticks;
+  if (!ticks_old && ticks)
+    TIMER->mstop &= ~1;
 }
 
 static uint32_t
 chx_systick_get (void)
 {
-  /* TBD */
+  return TIMER->mtime_lo;
 }
 
-static uint32_t usec_to_ticks (uint32_t usec)
+/* TIMER runs at 1/4 of core clock.  */
+
+static uint32_t
+usec_to_ticks (uint32_t usec)
 {
-  return usec * MHZ;
+  return usec * MHZ / 4;
 }
 
 /*
@@ -131,7 +152,7 @@ struct CLIC_INT {
   volatile uint8_t attr;
   volatile uint8_t ctl;
 } __attribute__((packed));
-static struct CLIC_INT *const CLIC_INT[4096] = (struct CLIC *)0xD2001000;
+static struct CLIC_INT *const CLIC_INT = (struct CLIC_INT *)0xD2001000;
 
 static void
 chx_enable_intr (uint8_t irq_num)
@@ -142,7 +163,7 @@ chx_enable_intr (uint8_t irq_num)
 static void
 chx_clr_intr (uint8_t irq_num)
 {
-  /* Clear pending interrupt is done automatically by hardware. */
+  /* Clear pending interrupt is done automatically by the hardware.  */
 }
 
 static int
@@ -160,12 +181,27 @@ chx_set_intr_prio (uint8_t irq_num)
   CLIC_INT[irq_num].ctl = 0x01; /* FIXME: level=1 */
 }
 
-/* Interrupt level control.  */
+static void __attribute__ ((naked)) chx_handle_intr (void);
+static void __attribute__ ((naked)) exception_handler (void);
 
-/* FIXME: Probably name chane? */
+/* FIXME: Probably name change?  It's not only priority but Interrupt
+   Controller initialization in general */
 static void
 chx_prio_init (void)
 {
+  /* mtvt2 enable, use common interrupt routine.  */
+  const uint32_t mtvt2_value = (uint32_t)chx_handle_intr | 1;
+  const uint32_t mtvec_value = (uint32_t)exception_handler;
+
+  asm volatile (
+	"csrw	mtvt2,%0"
+	: /* no output */ : "r" (mtvt2_value) : "memory");
+
+  asm volatile (
+	"csrw	mtvec,%0"
+	: /* no output */ : "r" (mtvec_value) : "memory" );
+  /* FIXME: or these initialization should be entry.c for RISC-V 32? */
+
   CLIC->cfg = 0;
   CLIC->mth = 0;
 }
@@ -176,8 +212,8 @@ chx_cpu_sched_lock (void)
 {
   if (running->prio < CHOPSTX_PRIO_INHIBIT_PREEMPTION)
     asm volatile (
-        "csrci	mstatus,8"
-        : : : "memory" );
+	"csrci	mstatus,8"
+	: : : "memory" );
 }
 
 static void
@@ -186,9 +222,10 @@ chx_cpu_sched_unlock (void)
   if (running->prio < CHOPSTX_PRIO_INHIBIT_PREEMPTION)
     asm volatile (
 	"csrsi	mstatus,8"
-        : : : "memory" );
+	: : : "memory" );
 }
 
+/* We keep the thread pointer in MSCRATCH.  */
 
 static void
 chx_init_arch (struct chx_thread *tp)
@@ -220,13 +257,13 @@ voluntary_context_switch (struct chx_thread *tp_next)
 	"sw	s10,20+104(tp)\n\t"
 	"sw	s11,20+108(tp)\n\t"
 	"# Check if going to IDLE thread\n\t"
-	"bneqz	%0,0f\n\t"
+	"bnez	%0,0f\n\t"
 	"# Spawn an IDLE thread, interrupt enabled.\n\t"
 	"mv	tp,zero\n\t"
-        "csrw	mscratch,tp\n\t"
+	"csrw	mscratch,tp\n\t"
 	"la	sp, __main_stack_end__\n\t"
-	"csrsi	mstatus,8\n\t"	     /* Unmask interrupts.  */
-	"j	chx_idle\n\t"
+	"csrsi	mstatus,8\n\t"  /* Unmask interrupts.  */
+	"j	chx_idle\n"
     "0:\n\t"
 	"mv	tp,%0\n\t"
 	"# Restore registers\n\t"
@@ -243,12 +280,12 @@ voluntary_context_switch (struct chx_thread *tp_next)
 	"lw	s9,20+100(tp)\n\t"
 	"lw	s10,20+104(tp)\n\t"
 	"lw	s11,20+108(tp)\n\t"
-        /**/
-        "csrw	mscratch,tp\n\t"
+	/**/
+	"csrw	mscratch,tp\n\t"
 	"lw	t0,20+0(tp)\n\t"
 	"beqz	t0,1f\n\t"
 	"# Restore all registers\n\t"
-        "csrw	mepc,t0\n\t"
+	"csrw	mepc,t0\n\t"
 	"lw	ra,20+4(tp)\n\t"
 	"lw	gp,20+12(tp)\n\t"
 	"lw	a0,20+40(tp)\n\t"
@@ -263,23 +300,23 @@ voluntary_context_switch (struct chx_thread *tp_next)
 	"lw	t4,20+116(tp)\n\t"
 	"lw	t5,20+120(tp)\n\t"
 	"lw	t6,20+124(tp)\n\t"
-        /**/
+	/**/
 	"lw	t0,20+128(tp)\n\t"
 	"lui	t1,0x00f00\n\t"
-        "not	t2,t1\n\t"
-        "and	t2,t2,t0\n\t"
-        "csrw	mstatus,t2\n\t"
-        "and	t1,t1,t0\n\t"
-        "srli	t1,t1,14\n\t"
-        "csrw	msubm,t1\n\t"
-        /**/
+	"not	t2,t1\n\t"
+	"and	t2,t2,t0\n\t"
+	"csrw	mstatus,t2\n\t"
+	"and	t1,t1,t0\n\t"
+	"srli	t1,t1,14\n\t"
+	"csrw	msubm,t1\n\t"
+	/**/
 	"lw	t0,20+20(tp)\n\t"
 	"lw	t1,20+24(tp)\n\t"
 	"lw	t2,20+28(tp)\n\t"
 	"lw	tp,20+16(tp)\n\t"
-	"mret\n\t"
+	"mret\n"
     "1:\n\t"
-	"csrsi	mstatus,8\n\t"	     /* Unmask interrupts.  */
+	"csrsi	mstatus,8\n"  /* Unmask interrupts.  */
     ".L_CONTEXT_SWITCH_FINISH:"
 	: "=r" (r)
 	: "a0" (tp_next)
@@ -307,6 +344,8 @@ voluntary_context_switch (struct chx_thread *tp_next)
 static uintptr_t __attribute__ ((noinline))
 chx_sched (uint32_t yield)
 {
+  struct chx_thread *tp = running;
+
   if (yield)
     {
       if (tp->flag_sched_rr)
@@ -335,7 +374,7 @@ chopstx_create_arch (uintptr_t stack_addr, size_t stack_size,
   void *stack;
   register uint32_t gp;
 
-  asm ("mv	%0,gp" : "=r" (gp));
+  asm (	"mv	%0,gp" : "=r" (gp));
 
   if (CHOPSTX_THREAD_SIZE != sizeof(struct chx_thread))
     cause_link_time_error_unexpected_size_of_struct_chx_thread ();
@@ -362,13 +401,18 @@ static struct chx_thread *
 chx_get_intr_thread (void)
 {
   struct chx_pq *p;
-  uint32_t irq_num = get_irq_num ();
+  uint32_t irq_num;
+
+  asm (	"csrr	%0,mcause\n\t"
+	"slli	%0,%0,20\n\t"
+	"srli	%0,%0,20"       /* Take lower 12-bit of MCAUSE */
+        : "=r" (irq_num));
 
   chx_disable_intr (irq_num);
   chx_spin_lock (&q_intr.lock);
   for (p = q_intr.q.next; p != (struct chx_pq *)&q_intr.q; p = p->next)
     if (p->v == irq_num)
-      /* should be one at most. */
+      /* should be one at most.  */
       break;
   chx_spin_unlock (&q_intr.lock);
 
@@ -380,45 +424,43 @@ chx_get_intr_thread (void)
       chx_wakeup (p);
 
       if (running == NULL || (uint16_t)running->prio < px->master->prio)
-        {
-          struct chx_thread *tp;
+	{
+	  struct chx_thread *tp;
 
-          tp = chx_ready_pop ();
-          if (tp && tp->flag_sched_rr)
-            {
-              chx_spin_lock (&q_timer.lock);
-              tp = chx_timer_insert (tp, PREEMPTION_USEC);
-              chx_spin_unlock (&q_timer.lock);
-            }
+	  tp = chx_ready_pop ();
+	  if (tp && tp->flag_sched_rr)
+	    {
+	      chx_spin_lock (&q_timer.lock);
+	      tp = chx_timer_insert (tp, PREEMPTION_USEC);
+	      chx_spin_unlock (&q_timer.lock);
+	    }
 
-          return tp;
-        }
+	  return tp;
+	}
     }
 
   return NULL;
 }
 
-void __attribute__ ((naked))
+static void __attribute__ ((naked))
 chx_handle_intr (void)
 {
-  register struct struct chx_thread *tp_next asm ("a0");
+  register struct chx_thread *tp_next asm ("a0");
 
   /*
    * stack setup to __main_stack_end__ 
    * save registers.
    */
   asm volatile (
-        /* Save stack pointer to MSCRATCH */
-        /* MSCRATCH value (thread pointer) into sp */
-        "csrrw	sp,mscratch,sp\n\t"
+	"csrrw	sp,mscratch,sp\n\t" /* SP to MSCRATCH, thread pointer into SP */
 	"# Check if it is IDLE thread\n\t"
-	"bneqz	sp,0f\n\t"
-        "csrw	mscratch,sp\n\t"
-        "mv	tp,zero\n\t"
-        "j	1f\n\t"
+	"bnez	sp,0f\n\t"
+	"csrw	mscratch,sp\n\t"    /* Recover MSCRATCH, the thread pointer */
+	"mv	tp,zero\n\t"
+	"j	1f\n"
     "0:\n\t"
-	"sw	tp,20+16(sp)\n\t"
-        "mv	tp,sp\n\t"
+	"sw	tp,20+16(sp)\n\t"   /* Application is free to other use of TP */
+	"mv	tp,sp\n\t"          /* TP is now the thread pointer */
 	"sw	ra,20+4(tp)\n\t"
 	"sw	gp,20+12(tp)\n\t"
 	"sw	t0,20+20(tp)\n\t"
@@ -436,28 +478,25 @@ chx_handle_intr (void)
 	"sw	t4,20+116(tp)\n\t"
 	"sw	t5,20+120(tp)\n\t"
 	"sw	t6,20+124(tp)\n\t"
-        /**/
-        "csrr	t0,mepc\n\t"
+	/**/
+	"csrr	t0,mepc\n\t"
 	"sw	t0,20+0(tp)\n\t"
-        /**/
-        "csrrw	sp,mscratch,tp\n\t"
-	"sw	sp,20+8(tp)\n\t"
-        /**/
+	/**/
+	"csrrw	sp,mscratch,tp\n\t" /* TP to MSCRATCH, SP_old into SP */
+	"sw	sp,20+8(tp)\n"
+	/**/
     "1:\n\t"
-	"la	sp, __main_stack_end__"
-        : /* no output */
-        : /* no input */ 
-        : "memory");
+	"la	sp, __main_stack_end__");
 
   tp_next = chx_get_intr_thread ();
-  if (!p)
+  if (!tp_next)
     asm volatile (
-	"bneqz	tp,0f\n\t"
+	"bnez	tp,0f\n\t"
 	"# Spawn an IDLE thread.\n\t"
 	"la	sp, __main_stack_end__\n\t"
-        "la	t0,chx_idle\n\t"
-        "csrw	mepc,t0\n\t"
-	"mret\n\t"
+	"la	t0,chx_idle\n\t"
+	"csrw	mepc,t0\n\t"
+	"mret\n"
     "0:\n\t"
 	"# Restore registers\n\t"
 	"lw	ra,20+4(tp)\n\t"
@@ -478,10 +517,8 @@ chx_handle_intr (void)
 	"lw	t4,20+116(tp)\n\t"
 	"lw	t5,20+120(tp)\n\t"
 	"lw	t6,20+124(tp)\n\t"
-        "mret"
-        :
-        :
-        : "memory" );
+	"lw	tp,20+16(tp)\n\t" /* Application is free to other use of TP */
+	"mret");
 
   /* Here, it's involuntary context switch.  */
   asm volatile (
@@ -499,12 +536,14 @@ chx_handle_intr (void)
 	"sw	s9,20+100(tp)\n\t"
 	"sw	s10,20+104(tp)\n\t"
 	"sw	s11,20+108(tp)\n\t"
-        "csrr	t0,mstatus\n\t"
-        "csrr	t1,msubm\n\t"
-        "slli	t1,t1,14\n\t"
-        "or	t0,t0,t1\n\t"
-	"sw	t0,20+128(tp)\n\t"
-        /**/
+	"csrr	t0,mstatus\n\t"
+	"slli	t0,t0,19\n\t"
+	"srli	t0,t0,19\n\t"     /* Clear SD, XS, and FS bits, no save */
+	"csrr	t1,msubm\n\t"
+	"slli	t1,t1,14\n\t"
+	"or	t0,t0,t1\n\t"
+	"sw	t0,20+128(tp)\n"
+	/**/
     "0:\n\t"
 	"mv	tp,%0\n\t"
 	"# Restore registers\n\t"
@@ -521,13 +560,25 @@ chx_handle_intr (void)
 	"lw	s9,20+100(tp)\n\t"
 	"lw	s10,20+104(tp)\n\t"
 	"lw	s11,20+108(tp)\n\t"
-        /**/
-        "csrw	mscratch,tp\n\t"
+	/**/
+	"csrw	mscratch,tp\n\t"
 	"lw	t0,20+0(tp)\n\t"
-	"beqz	t0,1f\n\t"
-        /**/
+	"bnez	t0,1f\n\t"
+	/**/
+	"la	t0,.L_CONTEXT_SWITCH_FINISH\n\t"
+	"csrw	mepc,t0\n\t"
+	"csrr	t0,mstatus\n\t"
+	"li	t1,0x188\n\t"     /* Set MPIE and MPP... */
+	"slli	t1,t1,4\n\t"      /* ... by shifting 4-bit left */
+	"or	t0,t0,t1\n\t"
+	"csrw	mstatus,t0\n\t"   /* Prev: Machine mode, enable interrupt */
+	"csrr	t0,msubm\n\t"
+	"andi	t0,t0,0x00c0\n\t"
+	"csrw	msubm,t0\n\t"     /* Prev: No-trap */
+	"mret\n"                  /* Return to Prev  */
+    "1:\n\t"
 	"# Restore all registers\n\t"
-        "csrw	mepc,t0\n\t"
+	"csrw	mepc,t0\n\t"
 	"lw	ra,20+4(tp)\n\t"
 	"lw	gp,20+12(tp)\n\t"
 	"lw	a0,20+40(tp)\n\t"
@@ -542,26 +593,24 @@ chx_handle_intr (void)
 	"lw	t4,20+116(tp)\n\t"
 	"lw	t5,20+120(tp)\n\t"
 	"lw	t6,20+124(tp)\n\t"
-        /**/
+	/**/
 	"lw	t0,20+128(tp)\n\t"
 	"lui	t1,0x00f00\n\t"
-        "not	t2,t1\n\t"
-        "and	t2,t2,t0\n\t"
-        "csrw	mstatus,t2\n\t"
-        "and	t1,t1,t0\n\t"
-        "srli	t1,t1,14\n\t"
-        "csrw	msubm,t1\n\t"
-        /**/
+	"not	t2,t1\n\t"
+	"and	t2,t2,t0\n\t"
+	"csrr	t3,mstatus\n\t"
+	"srli	t3,t3,13\n\t"     /* Keep SD, XS, and FS bits */
+	"slli	t3,t3,13\n\t"
+	"or	t2,t2,t3\n\t"
+	"csrw	mstatus,t2\n\t"
+	"and	t1,t1,t0\n\t"
+	"srli	t1,t1,14\n\t"
+	"csrw	msubm,t1\n\t"
+	/**/
 	"lw	t0,20+20(tp)\n\t"
 	"lw	t1,20+24(tp)\n\t"
 	"lw	t2,20+28(tp)\n\t"
-	"lw	tp,20+16(tp)\n\t"
-        "mret\n\t"
-    "1:\n\t"
-        "la	t0,.L_CONTEXT_SWITCH_FINISH\n\t"
-        "csrw	mepc,t0\n\t"
-        "mret"   /* Note that it will unmask interrupts on return.  */
-	: /* no output */
-	: "r" (tp_next)
-	: "memory");
+	"lw	tp,20+16(tp)\n\t" /* Application is free to other use of TP */
+	"mret"
+	: /* no output */ : "r" (tp_next));
 }
