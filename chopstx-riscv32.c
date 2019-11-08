@@ -59,21 +59,23 @@ chx_dmb (void)
 #define REG_A0   10
 
 /*
- * We keep the thread pointer in MSCRATCH.
+ * We keep the thread context pointer in MSCRATCH.
  */
 static struct chx_thread *
 chx_running (void)
 {
-  struct chx_thread *r;
+  struct chx_thread *tp;
 
-  asm (	"csrr	%0,mscratch" : "=r" (r));
-  return r;
+  asm (	"csrr	%0,mscratch\n\t"
+        "addi	%0,%0,-20"       : "=r" (tp));
+  return tp;
 }
 
 static void
-chx_set_running (struct chx_thread *r)
+chx_set_running (struct chx_thread *tp)
 {
-  asm (	"csrw	mscratch,%0" : /* no output */ : "r" (r) : "memory");
+  asm (	"addi	%0,%0,20\n\t"
+        "csrw	mscratch,%0" : /* no output */ : "r" (tp) : "memory");
 }
 
 
@@ -85,6 +87,15 @@ chx_set_running (struct chx_thread *r)
 
 /*
  * System tick
+ *
+ * SYSTICK timer model is decreasing counter, counter value 0 means
+ * timer stop.
+ *
+ * Since RISC-V 'mtime' is ever increasing counter, we need a bit of
+ * glue code here.  Fortunately, we have MSTOP register for Bumblebee
+ * core, we can use the register to stop the counter.  (If no such
+ * register stopping 'mtime', we could put possible largest value in
+ * MTIMECMP, so that the timer won't be fired.)
  */
 /* TIMER registers.  */
 struct TIMER {
@@ -183,7 +194,10 @@ chx_clr_intr (uint8_t irq_num)
 static int
 chx_disable_intr (uint8_t irq_num)
 {
+  int already_disabled = !(CLIC_INT[irq_num].ie & 1);
+
   CLIC_INT[irq_num].ie &= ~1;
+  return already_disabled;
 }
 
 static void
@@ -208,8 +222,6 @@ exception_handler (void)
         : /* no output */);
 }
 
-/* FIXME: Probably name change?  It's not only priority but Interrupt
-   Controller initialization in general */
 static void
 chx_interrupt_controller_init (void)
 {
@@ -224,8 +236,6 @@ chx_interrupt_controller_init (void)
   asm volatile (
 	"csrw	mtvec,%0"
 	: /* no output */ : "r" (mtvec_value) : "memory" );
-
-  /* FIXME: or these initialization should be entry.c for RISC-V 32? */
 
   CLIC->cfg = 0;
   CLIC->mth = 0;
@@ -268,7 +278,7 @@ chx_init_arch (struct chx_thread *tp)
 static uintptr_t
 voluntary_context_switch (struct chx_thread *tp_next)
 {
-  register uintptr_t r asm ("a0");
+  register uintptr_t result asm ("a0");
 
   asm volatile (
 	/* Here, %0 (a0) points to the thread to be switched.  */
@@ -350,13 +360,13 @@ voluntary_context_switch (struct chx_thread *tp_next)
     "1:\n\t"
 	"csrsi	mstatus,8\n"  /* Unmask interrupts.  */
     ".L_CONTEXT_SWITCH_FINISH:"
-	: "=r" (r)
-	: "a0" (tp_next)
+	: "=r" (result)
+	: "0" (tp_next)
 	: "ra", "t0", "t1", "t2", "t3", "t4", "t5", "t6",
 	  "a1", "a2", "a3", "a4", "a5", "a6", "a7",
 	  "memory");
 
-  return r;
+  return result;
 }
 
 /*
@@ -408,17 +418,15 @@ chopstx_create_arch (uintptr_t stack_addr, size_t stack_size,
 
   asm (	"mv	%0,gp" : "=r" (gp));
 
-  if (CHOPSTX_THREAD_SIZE != sizeof(struct chx_thread))
+  if (CHOPSTX_THREAD_SIZE != sizeof (struct chx_thread))
     cause_link_time_error_unexpected_size_of_struct_chx_thread ();
 
-  if (stack_size < sizeof (struct chx_thread) + 8 * sizeof (uint32_t))
+  if (stack_size < sizeof (struct chx_thread))
     chx_fatal (CHOPSTX_ERR_THREAD_CREATE);
 
   stack = (void *)(stack_addr + stack_size - sizeof (struct chx_thread));
-
-  tp = (struct chx_thread *)(stack + sizeof (struct chx_thread));
+  tp = (struct chx_thread *)stack;
   memset (&tp->tc, 0, sizeof (tp->tc));
-
   tp->tc.reg[REG_A0] = (uint32_t)arg;
   tp->tc.reg[REG_RA] = (uint32_t)chopstx_exit;
   tp->tc.reg[REG_PC] = (uint32_t)thread_entry;

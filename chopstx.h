@@ -164,4 +164,4 @@ int chopstx_poll (uint32_t *usec_p, int n,
 
 int chopstx_conf_idle (int enable_sleep);
 
-#define CHOPSTX_THREAD_SIZE 64
+#define CHOPSTX_THREAD_SIZE 160

@@ -39,9 +39,10 @@
  *
  * Simply, we have entries of all registers in the thread context.  We
  * don't use stack to save/restore part of its context.  We don't put
- * any other constraints such that an application should keep gp
- * and/or tp registers; It is free for an application to use registers
- * beyond a conventional usage.
+ * any other constraints such that an application should always keep
+ * gp and/or tp registers; It is free for an application to
+ * temporarily use those registers beyond a conventional usage (e.g.,
+ * for some specific routines like hash computation).
  *
  * We use the first entry, reg[0], to store PC, because x0 is always 0,
  * no need to save/restore it.
