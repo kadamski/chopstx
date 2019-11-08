@@ -438,7 +438,7 @@ chx_systick_init (void)
 {
   struct chx_thread *running = chx_running ();
 
-  chx_systick_reset ();
+  chx_systick_init_arch ();
 
   if ((CHX_FLAGS_MAIN & CHOPSTX_SCHED_RR))
     {
@@ -455,7 +455,7 @@ chopstx_t chopstx_main;
 void
 chx_init (struct chx_thread *tp)
 {
-  chx_prio_init ();
+  chx_interrupt_controller_init ();
   chx_init_arch (tp);
   chx_spin_init (&chx_enable_sleep_lock);
 
@@ -480,7 +480,6 @@ chx_init (struct chx_thread *tp)
   tp->prio = 0;
   tp->parent = NULL;
   tp->v = 0;
-  chx_set_running (tp);
 
   if (CHX_PRIO_MAIN_INIT >= CHOPSTX_PRIO_INHIBIT_PREEMPTION)
     chx_cpu_sched_lock ();

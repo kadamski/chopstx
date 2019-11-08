@@ -59,7 +59,7 @@ chx_dmb (void)
 #define REG_A0   10
 
 /*
- *
+ * We keep the thread pointer in MSCRATCH.
  */
 static struct chx_thread *
 chx_running (void)
@@ -101,7 +101,7 @@ static struct TIMER *const TIMER = (struct TIMER *)0xD1000000;
 /* In Chopstx, we only use the lower 32-bit of the timer.  */
 
 static void
-chx_systick_reset (void)
+chx_systick_init_arch (void)
 {
   TIMER->mstop |= 1;
   TIMER->mtime_hi = TIMER->mtime_lo = 0;
@@ -128,7 +128,12 @@ chx_systick_reload (uint32_t ticks)
 static uint32_t
 chx_systick_get (void)
 {
-  return TIMER->mtime_lo;
+  uint32_t now = TIMER->mtime_lo;
+
+  if (TIMER->mtimecmp_lo <= now)
+    return 0;
+
+  return TIMER->mtimecmp_lo - now;
 }
 
 /* TIMER runs at 1/4 of core clock.  */
@@ -190,6 +195,8 @@ chx_set_intr_prio (uint8_t irq_num)
   CLIC_INT[irq_num].ctl = 0x01; /* FIXME: level=1 */
 }
 
+#define TIMER_IRQ 7
+
 static void __attribute__ ((naked)) chx_handle_intr (void);
 static void __attribute__ ((naked)) exception_handler (void);
 
@@ -204,7 +211,7 @@ exception_handler (void)
 /* FIXME: Probably name change?  It's not only priority but Interrupt
    Controller initialization in general */
 static void
-chx_prio_init (void)
+chx_interrupt_controller_init (void)
 {
   /* mtvt2 enable, use common interrupt routine.  */
   const uint32_t mtvt2_value = (uint32_t)chx_handle_intr | 1;
@@ -222,6 +229,10 @@ chx_prio_init (void)
 
   CLIC->cfg = 0;
   CLIC->mth = 0;
+
+  /* In Bumblebee core, timer interrupt is also handled by CLIC.  */
+  chx_set_intr_prio (TIMER_IRQ);
+  chx_enable_intr (TIMER_IRQ);
 }
 
 
@@ -247,12 +258,11 @@ chx_cpu_sched_unlock (void)
 	: : : "memory" );
 }
 
-/* We keep the thread pointer in MSCRATCH.  */
-
 static void
 chx_init_arch (struct chx_thread *tp)
 {
   memset (&tp->tc, 0, sizeof (tp->tc));
+  chx_set_running (tp);
 }
 
 static uintptr_t
@@ -407,6 +417,7 @@ chopstx_create_arch (uintptr_t stack_addr, size_t stack_size,
   stack = (void *)(stack_addr + stack_size - sizeof (struct chx_thread));
 
   tp = (struct chx_thread *)(stack + sizeof (struct chx_thread));
+  memset (&tp->tc, 0, sizeof (tp->tc));
 
   tp->tc.reg[REG_A0] = (uint32_t)arg;
   tp->tc.reg[REG_RA] = (uint32_t)chopstx_exit;
