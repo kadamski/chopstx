@@ -189,6 +189,7 @@ static void
 chx_clr_intr (uint8_t irq_num)
 {
   /* Clear pending interrupt is done automatically by the hardware.  */
+  (void)irq_num;
 }
 
 static int
@@ -581,6 +582,25 @@ chx_handle_intr (void)
 	"lw	tp,16(sp)\n\t" /* Application is free to other use of TP */
 	"lw	sp,8(sp)\n\t"
 	"mret");
+
+  {
+    struct chx_thread *r = chx_running ();
+
+    if (r->flag_sched_rr)
+      {
+        if (r->state == THREAD_RUNNING)
+          {
+            chx_timer_dequeue (r);
+            chx_ready_enqueue (r);
+          }
+        /*
+         * It may be THREAD_READY after chx_timer_expired.
+         * Then, do nothing.
+         */
+      }
+    else
+      chx_ready_push (r);
+  }
 
   asm volatile (
         "# Involuntary context switch\n\t"
