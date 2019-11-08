@@ -65,17 +65,19 @@ chx_dmb (void)
 static struct chx_thread *
 chx_running (void)
 {
-  struct chx_thread *tp;
+  uint32_t r;
 
-  asm ( "addi	%0,tp,-20"       : "=r" (tp));
-  return tp;
+  asm ( "mv	%0,tp"       : "=r" (r));
+  if (r == 0)
+    return NULL;
+  return (struct chx_thread *)(r - 20);
 }
 
 static void
 chx_set_running (struct chx_thread *tp)
 {
-  asm (	"addi	%0,%0,20\n\t"
-        "csrw	mscratch,%0" : /* no output */ : "r" (tp) : "memory");
+  asm (	"addi	tp,%0,20\n\t"
+	"csrw	mscratch,tp" : /* no output */ : "r" (tp) : "memory");
 }
 
 
