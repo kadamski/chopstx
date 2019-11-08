@@ -490,8 +490,8 @@ chx_recv_irq (uint32_t irq_num)
 #define TIMER_IRQ 7
 struct chx_thread * chx_timer_expired (void);
 
-static void __attribute__ ((used,noinline))
-running_preempted (void)
+static struct chx_thread * __attribute__ ((used,noinline))
+running_preempted (struct chx_thread *tp_next)
 {
   struct chx_thread *r = chx_running ();
 
@@ -509,6 +509,8 @@ running_preempted (void)
     }
   else
     chx_ready_push (r);
+
+  return tp_next;
 }
 
 /*
@@ -604,14 +606,7 @@ chx_handle_intr (void)
 	"lw	sp,8(sp)\n\t"
 	"mret");
 
-  asm volatile (
-	"# Save A0 register onto stack\n\t"
-	"add	sp,sp,-16\n\t"  /* We only need 4-byte, but 16 for ADDI16SP */
-	"sw	%0,0(sp)\n\t"
-	"call	running_preempted\n\t"
-	"lw	%0,0(sp)\n\t"
-	"add	sp,sp,16"
-	: /* no output */ : "r" (tp_next) : "memory");
+  tp_next = running_preempted (tp_next);
 
   asm volatile (
         "# Involuntary context switch\n\t"
