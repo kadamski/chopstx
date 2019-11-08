@@ -490,6 +490,27 @@ chx_recv_irq (uint32_t irq_num)
 #define TIMER_IRQ 7
 struct chx_thread * chx_timer_expired (void);
 
+static void __attribute__ ((used,noinline))
+running_preempted (void)
+{
+  struct chx_thread *r = chx_running ();
+
+  if (r->flag_sched_rr)
+    {
+      if (r->state == THREAD_RUNNING)
+        {
+          chx_timer_dequeue (r);
+          chx_ready_enqueue (r);
+        }
+      /*
+       * It may be THREAD_READY after chx_timer_expired.
+       * Then, do nothing.
+       */
+    }
+  else
+    chx_ready_push (r);
+}
+
 /*
  * Note: Examine the assembler output carefully, because it has
  * ((naked)) attribute
@@ -583,24 +604,14 @@ chx_handle_intr (void)
 	"lw	sp,8(sp)\n\t"
 	"mret");
 
-  {
-    struct chx_thread *r = chx_running ();
-
-    if (r->flag_sched_rr)
-      {
-        if (r->state == THREAD_RUNNING)
-          {
-            chx_timer_dequeue (r);
-            chx_ready_enqueue (r);
-          }
-        /*
-         * It may be THREAD_READY after chx_timer_expired.
-         * Then, do nothing.
-         */
-      }
-    else
-      chx_ready_push (r);
-  }
+  asm volatile (
+	"# Save A0 register onto stack\n\t"
+	"add	sp,sp,-16\n\t"  /* We only need 4-byte, but 16 for ADDI16SP */
+	"sw	%0,0(sp)\n\t"
+	"call	running_preempted\n\t"
+	"lw	%0,0(sp)\n\t"
+	"add	sp,sp,16"
+	: /* no output */ : "r" (tp_next) : "memory");
 
   asm volatile (
         "# Involuntary context switch\n\t"
