@@ -88,13 +88,13 @@ chx_set_running (struct chx_thread *tp)
 /*
  * System tick
  *
- * SYSTICK timer model is decreasing counter, counter value 0 means
- * timer stop.
+ * SYSTICK timer model is decreasing counter, where counter value 0
+ * means the timer stop.
  *
- * Since RISC-V 'mtime' is ever increasing counter, we need a bit of
+ * Since RISC-V MTIME is ever increasing counter, we need a bit of
  * glue code here.  Fortunately, we have MSTOP register for Bumblebee
- * core, we can use the register to stop the counter.  (If no such
- * register stopping 'mtime', we could put possible largest value in
+ * core, so, we can use the register to stop the counter.  (If no such
+ * register stopping MTIME, we could put possible largest value in
  * MTIMECMP, so that the timer won't be fired.)
  */
 /* TIMER registers.  */

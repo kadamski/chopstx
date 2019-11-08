@@ -31,21 +31,18 @@
 #include <stdlib.h>
 #include <chopstx.h>
 
-#include "board.h"
-
 #include "mcu/clk_gpio_init-gd32vf103.c"
 
 /*
  *
  */
-STATIC_ENTRY __attribute__ ((naked,section(".text.startup.0")))
-void
+void __attribute__ ((naked,section(".text.startup.0")))
 entry (void)
 {
   /* Start at 0x00000000 (alias 0x08000000), interrupt masked */
   asm volatile (
 	"lui	a0,0x08000\n\t"
-	"addi	a0,a0,%pcrel_lo(0f)\n\t"
+	"addi	a0,a0,%%pcrel_lo(0f)\n\t"
 	"jr	a0\n"		/* Jump to physical address */
     "0:\n"
     ".option push\n"
