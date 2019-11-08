@@ -1,6 +1,10 @@
 # Chopstx make rules.
 
-CSRC += $(CHOPSTX)/entry.c $(CHOPSTX)/chopstx.c
+CSRC += $(CHOPSTX)/entry-$(CHIP).c
+CSRC += $(CHOPSTX)/chopstx.c
+
+INCDIR += /usr/local/picolibc/riscv64-unknown-elf/include
+LIBDIR += /usr/local/picolibc/riscv64-unknown-elf/lib
 
 ifneq ($(USE_EVENTFLAG),)
 CSRC += $(CHOPSTX)/eventflag.c
@@ -56,9 +60,10 @@ LLIBDIR   = $(patsubst %,-L%,$(LIBDIR))
 VPATH     = $(sort $(dir $(CSRC)))
 ###
 ifeq ($(EMULATION),)
-MCFLAGS   = -mcpu=$(MCU)
-LDFLAGS   = $(MCFLAGS) -nostartfiles -T$(LDSCRIPT) \
-            -Wl,-Map=$(BUILDDIR)/$(PROJECT).map,--cref,--no-warn-mismatch,--gc-sections
+# MCFLAGS   = -mcpu=$(MCU)
+MCFLAGS   = -march=rv32imac -mabi=ilp32
+LDFLAGS   = $(MCFLAGS) -nodefaultlibs -nostartfiles -lc -T$(LDSCRIPT) \
+            -Wl,-Map=$(BUILDDIR)/$(PROJECT).map,--cref,--no-warn-mismatch
 else
 MCFLAGS   =
 LDFLAGS   =
@@ -68,10 +73,10 @@ endif
 CFLAGS    = $(MCFLAGS) $(OPT) $(CWARN) -Wa,-alms=$(BUILDDIR)/$(notdir $(<:.c=.lst)) $(DEFS)
 LDFLAGS  += $(LLIBDIR)
 
-ifeq ($(EMULATION),)
-CFLAGS   += -mthumb -mno-thumb-interwork -DTHUMB
-LDFLAGS  += -mthumb -mno-thumb-interwork
-endif
+# ifeq ($(EMULATION),)
+# CFLAGS   += -mthumb -mno-thumb-interwork -DTHUMB
+# LDFLAGS  += -mthumb -mno-thumb-interwork
+# endif
 
 CFLAGS   += -MD -MP -MF .dep/$(@F).d
 

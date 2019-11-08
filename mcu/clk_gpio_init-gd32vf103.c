@@ -1,7 +1,7 @@
 #include <stdint.h>
 #include <mcu/gd32vf103.h>
 
-static void __attribute__((used))
+static void __attribute__((used,section(".text.startup.1")))
 clock_init (void)
 {
   /* HXTAL setup */
@@ -46,7 +46,7 @@ clock_init (void)
   /* Flash setup: TBD */
 }
 
-static void __attribute__((used))
+static void __attribute__((used,section(".text.startup.0")))
 gpio_init (void)
 {
   /* Enable GPIOC */

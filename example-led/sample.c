@@ -2,8 +2,16 @@
 #include <stdlib.h>
 #include <chopstx.h>
 
-#include "board.h"
-#include "sys.h" /* for set_led */
+#include <mcu/gd32vf103.h>
+
+static void
+set_led (int on)
+{
+  if (on)
+    GPIOC->ODR &= ~(1 << 13);
+  else
+    GPIOC->ODR |= (1 << 13);
+}
 
 static chopstx_mutex_t mtx;
 static chopstx_cond_t cnd0;
