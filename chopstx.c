@@ -86,9 +86,6 @@ chx_fatal (uint32_t err_code)
 int chx_allow_sleep;
 static struct chx_spinlock chx_enable_sleep_lock;
 
-/* RUNNING: the current thread.  */
-struct chx_thread *running;
-
 struct chx_queue {
   struct chx_qh q;
   struct chx_spinlock lock;
@@ -108,7 +105,7 @@ static struct chx_queue q_intr;
 
 /* Forward declaration(s). */
 static int chx_wakeup (struct chx_pq *p);
-static struct chx_thread * chx_timer_insert (struct chx_thread *tp, uint32_t usec);
+static void chx_timer_insert (struct chx_thread *tp, uint32_t usec);
 static uint32_t chx_timer_dequeue (struct chx_thread *tp);
 
 
@@ -316,7 +313,7 @@ chx_set_timer (struct chx_thread *tp, uint32_t ticks)
     tp->v = ticks;
 }
 
-static struct chx_thread *
+static void
 chx_timer_insert (struct chx_thread *tp, uint32_t usec)
 {
   struct chx_pq *p;
@@ -347,8 +344,6 @@ chx_timer_insert (struct chx_thread *tp, uint32_t usec)
       chx_set_timer ((struct chx_thread *)tp->prev, ticks);
       chx_set_timer (tp, 1);	/* Non-zero for the last entry. */
     }
-
-  return tp;
 }
 
 
@@ -388,6 +383,7 @@ struct chx_thread *
 chx_timer_expired (void)
 {
   struct chx_thread *tp;
+  struct chx_thread *running = chx_running ();
   uint16_t prio = 0;			/* Use uint16_t here. */
 
   chx_spin_lock (&q_timer.lock);
@@ -440,6 +436,8 @@ chx_timer_expired (void)
 void
 chx_systick_init (void)
 {
+  struct chx_thread *running = chx_running ();
+
   chx_systick_reset ();
 
   if ((CHX_FLAGS_MAIN & CHOPSTX_SCHED_RR))
@@ -482,7 +480,7 @@ chx_init (struct chx_thread *tp)
   tp->prio = 0;
   tp->parent = NULL;
   tp->v = 0;
-  running = tp;
+  chx_set_running (tp);
 
   if (CHX_PRIO_MAIN_INIT >= CHOPSTX_PRIO_INHIBIT_PREEMPTION)
     chx_cpu_sched_lock ();
@@ -504,6 +502,7 @@ chx_wakeup (struct chx_pq *pq)
 {
   int yield = 0;
   struct chx_thread *tp;
+  struct chx_thread *running = chx_running ();
 
   if (pq->flag_is_proxy)
     {
@@ -544,6 +543,7 @@ static void __attribute__((noreturn))
 chx_exit (void *retval)
 {
   struct chx_pq *p;
+  struct chx_thread *running = chx_running ();
 
   chx_cpu_sched_lock ();
   if (running->flag_join_req)
@@ -580,6 +580,7 @@ static chopstx_prio_t
 chx_mutex_unlock (chopstx_mutex_t *mutex)
 {
   struct chx_thread *tp;
+  struct chx_thread *running = chx_running ();
 
   mutex->owner = NULL;
   running->mutex_list = mutex->list;
@@ -627,6 +628,7 @@ chopstx_create (uint32_t flags_and_prio,
 {
   struct chx_thread *tp;
   chopstx_prio_t prio = (flags_and_prio & CHOPSTX_PRIO_MASK);
+  struct chx_thread *running = chx_running ();
 
   tp = chopstx_create_arch (stack_addr, stack_size, thread_entry,
 			    arg);
@@ -672,6 +674,7 @@ chopstx_create (uint32_t flags_and_prio,
 static int
 chx_snooze (uint32_t state, uint32_t *usec_p)
 {
+  struct chx_thread *running = chx_running ();
   uint32_t usec = *usec_p;
   uint32_t usec0;
   int r;
@@ -794,7 +797,7 @@ requeue (struct chx_thread *tp)
 void
 chopstx_mutex_lock (chopstx_mutex_t *mutex)
 {
-  struct chx_thread *tp = running;
+  struct chx_thread *tp = chx_running ();
 
   while (1)
     {
@@ -853,6 +856,7 @@ chopstx_mutex_lock (chopstx_mutex_t *mutex)
 void
 chopstx_mutex_unlock (chopstx_mutex_t *mutex)
 {
+  struct chx_thread *running = chx_running ();
   chopstx_prio_t prio;
 
   chx_cpu_sched_lock ();
@@ -890,8 +894,8 @@ chopstx_cond_init (chopstx_cond_t *cond)
 void
 chopstx_cond_wait (chopstx_cond_t *cond, chopstx_mutex_t *mutex)
 {
-  struct chx_thread *tp = running;
   int r;
+  struct chx_thread *tp = chx_running ();
 
   chopstx_testcancel ();
   chx_cpu_sched_lock ();
@@ -1098,6 +1102,8 @@ chopstx_intr_done (chopstx_intr_t *intr)
 void
 chopstx_cleanup_push (struct chx_cleanup *clp)
 {
+  struct chx_thread *running = chx_running ();
+
   clp->next = running->clp;
   running->clp = clp;
 }
@@ -1112,6 +1118,7 @@ chopstx_cleanup_push (struct chx_cleanup *clp)
 void
 chopstx_cleanup_pop (int execute)
 {
+  struct chx_thread *running = chx_running ();
   struct chx_cleanup *clp = running->clp;
 
   if (clp)
@@ -1136,6 +1143,7 @@ void
 chopstx_exit (void *retval)
 {
   struct chx_mtx *m, *m_next;
+  struct chx_thread *running = chx_running ();
   struct chx_cleanup *clp = running->clp;
 
   running->clp = NULL;
@@ -1172,6 +1180,7 @@ chopstx_exit (void *retval)
 int
 chopstx_join (chopstx_t thd, void **ret)
 {
+  struct chx_thread *running = chx_running ();
   struct chx_thread *tp = (struct chx_thread *)thd;
   int r = 0;
 
@@ -1275,6 +1284,7 @@ void
 chopstx_cancel (chopstx_t thd)
 {
   struct chx_thread *tp = (struct chx_thread *)thd;
+  struct chx_thread *running = chx_running ();
 
   chx_cpu_sched_lock ();
   tp->flag_got_cancel = 1;
@@ -1331,6 +1341,8 @@ chopstx_cancel (chopstx_t thd)
 void
 chopstx_testcancel (void)
 {
+  struct chx_thread *running = chx_running ();
+
   if (running->flag_cancelable && running->flag_got_cancel)
     chopstx_exit (CHOPSTX_CANCELED);
 }
@@ -1347,6 +1359,7 @@ chopstx_testcancel (void)
 int
 chopstx_setcancelstate (int cancel_disable)
 {
+  struct chx_thread *running = chx_running ();
   int old_state = !running->flag_cancelable;
 
   running->flag_cancelable = (cancel_disable == 0);
@@ -1357,6 +1370,8 @@ chopstx_setcancelstate (int cancel_disable)
 static void
 chx_proxy_init (struct chx_px *px, uint32_t *cp)
 {
+  struct chx_thread *running = chx_running ();
+
   px->next = px->prev = (struct chx_pq *)px;
   px->flag_is_proxy = 1;
   px->prio = running->prio;
@@ -1388,6 +1403,7 @@ chopstx_poll (uint32_t *usec_p, int n, struct chx_poll_head *const pd_array[])
   struct chx_px px[n];
   struct chx_poll_head *pd;
   int r = 0;
+  struct chx_thread *running = chx_running ();
 
   chx_dmb ();
   chopstx_testcancel ();
@@ -1508,7 +1524,7 @@ chopstx_poll (uint32_t *usec_p, int n, struct chx_poll_head *const pd_array[])
 chopstx_prio_t
 chopstx_setpriority (chopstx_prio_t prio_new)
 {
-  struct chx_thread *tp = running;
+  struct chx_thread *tp = chx_running ();
   chopstx_prio_t prio_orig, prio_cur;
 
   chx_cpu_sched_lock ();

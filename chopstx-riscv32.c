@@ -61,10 +61,19 @@ chx_dmb (void)
 /*
  *
  */
-struct chx_thread *
-chx_get_running (void)
+static struct chx_thread *
+chx_running (void)
 {
-  /*TBD*/
+  struct chx_thread *r;
+
+  asm (	"csrr	%0,mscratch" : "=r" (r));
+  return r;
+}
+
+static void
+chx_set_running (struct chx_thread *r)
+{
+  asm (	"csrw	mscratch,%0" : /* no output */ : "r" (r) : "memory");
 }
 
 
@@ -219,7 +228,9 @@ chx_prio_init (void)
 static void
 chx_cpu_sched_lock (void)
 {
-  if (running->prio < CHOPSTX_PRIO_INHIBIT_PREEMPTION)
+  struct chx_thread *r = chx_running ();
+
+  if (r->prio < CHOPSTX_PRIO_INHIBIT_PREEMPTION)
     asm volatile (
 	"csrci	mstatus,8"
 	: : : "memory" );
@@ -228,7 +239,9 @@ chx_cpu_sched_lock (void)
 static void
 chx_cpu_sched_unlock (void)
 {
-  if (running->prio < CHOPSTX_PRIO_INHIBIT_PREEMPTION)
+  struct chx_thread *r = chx_running ();
+
+  if (r->prio < CHOPSTX_PRIO_INHIBIT_PREEMPTION)
     asm volatile (
 	"csrsi	mstatus,8"
 	: : : "memory" );
@@ -270,7 +283,7 @@ voluntary_context_switch (struct chx_thread *tp_next)
 	"# Spawn an IDLE thread, interrupt enabled.\n\t"
 	"mv	tp,zero\n\t"
 	"csrw	mscratch,tp\n\t"
-	"la	sp, __main_stack_end__\n\t"
+	"la	sp,__main_stack_end__\n\t"
 	"csrsi	mstatus,8\n\t"  /* Unmask interrupts.  */
 	"j	chx_idle\n"
     "0:\n\t"
@@ -353,7 +366,7 @@ voluntary_context_switch (struct chx_thread *tp_next)
 static uintptr_t __attribute__ ((noinline))
 chx_sched (uint32_t yield)
 {
-  struct chx_thread *tp = running;
+  struct chx_thread *tp = chx_running ();
 
   if (yield)
     {
@@ -366,7 +379,7 @@ chx_sched (uint32_t yield)
   if (tp && tp->flag_sched_rr)
     {
       chx_spin_lock (&q_timer.lock);
-      tp = chx_timer_insert (tp, PREEMPTION_USEC);
+      chx_timer_insert (tp, PREEMPTION_USEC);
       chx_spin_unlock (&q_timer.lock);
     }
 
@@ -407,9 +420,10 @@ chopstx_create_arch (uintptr_t stack_addr, size_t stack_size,
 
 
 static struct chx_thread * __attribute__ ((noinline))
-chx_get_intr_thread (uint32_t irq_num)
+chx_recv_irq (uint32_t irq_num)
 {
   struct chx_pq *p;
+  struct chx_thread *r = chx_running ();
 
   chx_disable_intr (irq_num);
   chx_spin_lock (&q_intr.lock);
@@ -426,7 +440,7 @@ chx_get_intr_thread (uint32_t irq_num)
       ll_dequeue (p);
       chx_wakeup (p);
 
-      if (running == NULL || (uint16_t)running->prio < px->master->prio)
+      if (r == NULL || (uint16_t)r->prio < px->master->prio)
 	{
 	  struct chx_thread *tp;
 
@@ -434,7 +448,7 @@ chx_get_intr_thread (uint32_t irq_num)
 	  if (tp && tp->flag_sched_rr)
 	    {
 	      chx_spin_lock (&q_timer.lock);
-	      tp = chx_timer_insert (tp, PREEMPTION_USEC);
+	      chx_timer_insert (tp, PREEMPTION_USEC);
 	      chx_spin_unlock (&q_timer.lock);
 	    }
 
@@ -497,7 +511,7 @@ chx_handle_intr (void)
 	"sw	sp,20+8(tp)\n"
 	/**/
     "1:\n\t"
-	"la	sp, __main_stack_end__");
+	"la	sp,__main_stack_end__");
 
   asm (	"csrr	%0,mcause\n\t"
 	"slli	%0,%0,20\n\t"
@@ -507,13 +521,13 @@ chx_handle_intr (void)
   if (irq_num == TIMER_IRQ)
     tp_next = chx_timer_expired ();
   else
-    tp_next = chx_get_intr_thread (irq_num);
+    tp_next = chx_recv_irq (irq_num);
 
   if (!tp_next)
     asm volatile (
 	"bnez	tp,0f\n\t"
 	"# Spawn an IDLE thread.\n\t"
-	"la	sp, __main_stack_end__\n\t"
+	"la	sp,__main_stack_end__\n\t"
 	"la	t0,chx_idle\n\t"
 	"csrw	mepc,t0\n\t"
 	"mret\n"
@@ -540,8 +554,8 @@ chx_handle_intr (void)
 	"lw	tp,20+16(tp)\n\t" /* Application is free to other use of TP */
 	"mret");
 
-  /* Involuntary context switch */
   asm volatile (
+        "# Involuntary context switch\n\t"
 	"beqz	tp,0f\n\t"
 	"# Save registers\n\t"
 	"sw	s0,20+32(tp)\n\t"
