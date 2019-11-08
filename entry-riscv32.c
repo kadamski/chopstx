@@ -1,5 +1,5 @@
 /*
- * entry.c - Entry routine when reset and interrupt vectors.
+ * entry.c - Entry routine when reset.
  *
  * Copyright (C) 2019
  *               Flying Stone Technology
@@ -35,8 +35,6 @@
 
 #include "mcu/clk_gpio_init-gd32vf103.c"
 
-#define C_S_SUB(arg0, arg1, arg2) arg0 #arg1 arg2
-#define COMPOSE_STATEMENT(arg0,arg1,arg2)  C_S_SUB (arg0, arg1, arg2)
 /*
  *
  */
@@ -55,7 +53,7 @@ entry (void)
 	"la	gp,__global_pointer$\n"
     ".option pop\n\t"
 	"la	sp,__main_stack_end__\n\t"
-	"jal	clock_init\n\t"
+	"call	clock_init\n\t"
 	/* Clear BSS section.  */
 	"la	a0,_bss_start\n\t"
 	"la	a1,_bss_end\n\t"
@@ -78,17 +76,15 @@ entry (void)
 	"j	0b\n"
     "1:\n\t"
 	/* Switch to application stack.  */
-	"la	sp,__process0_stack_end__\n\t"
-	COMPOSE_STATEMENT ("subi	sp, #", CHOPSTX_THREAD_SIZE, "\n\t")
-	"jal	chx_init\n\t"
-	"jal	chx_systick_init\n\t"
-	"jal	gpio_init\n\t"
-	/* TBD: msubm??? */
+	"la	sp,__process0_stack_end__-160\n\t"
+	"call	chx_init\n\t"
+	"call	chx_systick_init\n\t"
+	"call	gpio_init\n\t"
 	/* Enable interrupts.  */
 	"csrsi	mstatus,8\n\t"
 	/* Call main.  */
 	"call	main\n\t"
-    "4:\n\t"
-	"j	4b"
+    "3:\n\t"
+	"j	3b"
 	: /* no output */ : /* no input */ : "memory");
 }
