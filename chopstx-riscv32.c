@@ -281,8 +281,7 @@ voluntary_context_switch (struct chx_thread *tp_next)
   register uintptr_t result asm ("a0");
 
   asm volatile (
-	/* Here, %0 (a0) points to the thread to be switched.  */
-	/* Offset to tcontext_t is 20 */
+	/* Here, %0 (a0) points to the thread context to be switched.  */
 	"# Save registers\n\t"
 	"sw	sp,8(tp)\n\t"
 	"mv	sp,tp\n\t"      /* Using SP, we can use C.SWSP instruction */
@@ -323,7 +322,7 @@ voluntary_context_switch (struct chx_thread *tp_next)
 	"lw	s10,104(sp)\n\t"
 	"lw	s11,108(sp)\n\t"
 	/**/
-	"lw	a0,40(sp)\n\t"  /* Get the result value */
+	"lw	a0,-4(sp)\n\t"  /* Get the result value */
 	/**/
 	"csrw	mscratch,sp\n\t"
 	"lw	a1,0(sp)\n\t"
@@ -628,7 +627,7 @@ chx_handle_intr (void)
 	"lw	a0,0(sp)\n\t"
 	"bnez	a0,1f\n\t"
 	/**/
-	"lw	a0,40(sp)\n\t"    /* Get the result value */
+	"lw	a0,-4(sp)\n\t"    /* Get the result value */
 	/**/
 	"mv	tp,sp\n\t"
 	"lw	sp,8(sp)\n\t"
