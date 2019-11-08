@@ -161,7 +161,8 @@ usec_to_ticks (uint32_t usec)
 
 /* CLIC registers.  */
 struct CLIC {
-  volatile uint32_t cfg;
+  volatile uint8_t cfg;
+  uint8_t rsv[3];
   volatile uint32_t info;
   volatile uint8_t uth;
   volatile uint8_t sth;
@@ -207,7 +208,7 @@ chx_set_intr_prio (uint8_t irq_num)
   CLIC_INT[irq_num].attr = 0x00; /* Level triggered, rising-edge, SHV=0 */
   /* Note: SHV: Selective Hardware Vectoring: off (use common routine).  */
 
-  CLIC_INT[irq_num].ctl = 0x01; /* FIXME: level=1 */
+  CLIC_INT[irq_num].ctl = 0xff;
 }
 
 #define TIMER_IRQ 7
