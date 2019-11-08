@@ -46,7 +46,7 @@ clock_init (void)
   /* Flash setup: TBD */
 }
 
-static void __attribute__((used,section(".text.startup.0")))
+static void __attribute__((used,section(".text.startup.1")))
 gpio_init (void)
 {
   /* Enable GPIOC */

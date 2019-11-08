@@ -41,10 +41,8 @@ entry (void)
 {
   /* Start at 0x00000000 (alias 0x08000000), interrupt masked */
   asm volatile (
-	"lui	a0,0x08000\n\t"
-	"addi	a0,a0,%%pcrel_lo(0f)\n\t"
-	"jr	a0\n"		/* Jump to physical address */
-    "0:\n"
+	"li	a0,0x0800000a\n\t"
+        "jr	a0\n\t"		/* Jump to physical address */
     ".option push\n"
     ".option norelax\n\t"
 	"la	gp,__global_pointer$\n"
@@ -74,6 +72,7 @@ entry (void)
     "1:\n\t"
 	/* Switch to application stack.  */
 	"la	sp,__process0_stack_end__-160\n\t"
+	"mv	a0,sp\n\t"
 	"call	chx_init\n\t"
 	"call	chx_systick_init\n\t"
 	"call	gpio_init\n\t"
