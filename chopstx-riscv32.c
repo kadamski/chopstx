@@ -105,10 +105,12 @@ struct TIMER {
   volatile uint32_t mtime_hi;
   volatile uint32_t mtimecmp_lo;
   volatile uint32_t mtimecmp_hi;
-  uint32_t rsv[1018];
-  volatile uint32_t mstop;
-  volatile uint32_t msip;
-};
+  uint32_t rsv0[1018];
+  volatile uint8_t mstop;
+  uint8_t rsv1[3];
+  volatile uint8_t msip;
+  uint8_t rsv2[3];
+} __attribute__((packed));
 static struct TIMER *const TIMER = (struct TIMER *)0xD1000000;
 
 /* In Chopstx, we only use the lower 32-bit of the timer.  */
@@ -118,7 +120,8 @@ chx_systick_init_arch (void)
 {
   TIMER->mstop |= 1;
   TIMER->mtime_hi = TIMER->mtime_lo = 0;
-  TIMER->mtimecmp_hi = TIMER->mtimecmp_lo = 0;
+  TIMER->mtimecmp_lo = 0xffffffff;
+  TIMER->mtimecmp_hi = 0;
 }
 
 /*
@@ -207,7 +210,7 @@ chx_disable_intr (uint8_t irq_num)
 static void
 chx_set_intr_prio (uint8_t irq_num)
 {
-  CLIC_INT[irq_num].attr = 0x00; /* Level triggered, rising-edge, SHV=0 */
+  CLIC_INT[irq_num].attr = 0xc0; /* Level triggered, SHV=0 */
   /* Note: SHV: Selective Hardware Vectoring: off (use common routine).  */
 
   CLIC_INT[irq_num].ctl = 0xff;
@@ -221,7 +224,7 @@ static void __attribute__ ((naked)) exception_handler (void);
 static void
 exception_handler (void)
 {
-   asm volatile (
+  asm volatile (
 "0:	j	0b"
         : /* no output */);
 }
@@ -229,17 +232,14 @@ exception_handler (void)
 static void
 chx_interrupt_controller_init (void)
 {
-  /* mtvt2 enable, use common interrupt routine.  */
-  const uint32_t mtvt2_value = (uint32_t)chx_handle_intr | 1;
-  const uint32_t mtvec_value = (uint32_t)exception_handler;
-
   asm volatile (
-	"csrw	mtvt2,%0"
-	: /* no output */ : "r" (mtvt2_value) : "memory");
+	"csrw	mtvt2,%0\n\t"
+	"csrsi	mtvt2,1"
+	: /* no output */ : "r" (chx_handle_intr) : "memory");
 
   asm volatile (
 	"csrw	mtvec,%0"
-	: /* no output */ : "r" (mtvec_value) : "memory" );
+	: /* no output */ : "r" (exception_handler) : "memory" );
 
   CLIC->cfg = 0;
   CLIC->mth = 0;
@@ -493,7 +493,7 @@ chx_recv_irq (uint32_t irq_num)
 #define TIMER_IRQ 7
 struct chx_thread * chx_timer_expired (void);
 
-static struct chx_thread * __attribute__ ((used,noinline))
+static struct chx_thread * __attribute__ ((noinline))
 running_preempted (struct chx_thread *tp_next)
 {
   struct chx_thread *r = chx_running ();
