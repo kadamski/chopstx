@@ -37,6 +37,8 @@ static struct RCU *const RCU = (struct RCU *)0x40021000;
 #define RCU_CFG1_PREDV0SEL_MASK     0x00010000
 #define RCU_CFG1_PREDV0SEL_HXTAL    0x00000000
 
+#define RCU_APB2_GPIOA  0x00000004
+#define RCU_APB2_GPIOB  0x00000008
 #define RCU_APB2_GPIOC  0x00000010
 
 /* Semantics is exactly same as STM32F103.  */
@@ -49,4 +51,6 @@ struct GPIO {
   volatile uint32_t BRR;
   volatile uint32_t LCKR;
 };
+static struct GPIO *const GPIOA = (struct GPIO *)0x40010800;
+static struct GPIO *const GPIOB = (struct GPIO *)0x40010C00;
 static struct GPIO *const GPIOC = (struct GPIO *)0x40011000;

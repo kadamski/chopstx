@@ -49,14 +49,20 @@ clock_init (void)
 static void __attribute__((used,section(".text.startup.1")))
 gpio_init (void)
 {
+  /* Enable GPIOA */
+  RCU->APB2EN  |= RCU_APB2_GPIOA;
+  RCU->APB2RST = RCU_APB2_GPIOA;
+  RCU->APB2RST = 0;
   /* Enable GPIOC */
   RCU->APB2EN  |= RCU_APB2_GPIOC;
   RCU->APB2RST = RCU_APB2_GPIOC;
   RCU->APB2RST = 0;
 
-  /* Configure GPIOC */
+  /* Configure GPIOA, GPIOC */
+  GPIOA->CRL = 0x44444224;
   GPIOC->CRH = 0x44244444;
 
   /* LED ON */
+  GPIOA->ODR &= ~((1 << 2)|(1 << 1));
   GPIOC->ODR &= ~(1 << 13);
 }
