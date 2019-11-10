@@ -230,6 +230,14 @@ exception_handler (void)
         : /* no output */);
 }
 
+static void __attribute__ ((naked))
+memory_error (void)
+{
+  asm volatile (
+"0:	j	0b"
+        : /* no output */);
+}
+
 typedef void (*handler)(void);
 
 /* Not used (because we always disable SHV for all interrupts),
@@ -240,7 +248,7 @@ static const handler vector_table[] __attribute__ ((aligned(512))) = {
  0, 0, 0, chx_handle_intr,
  0, 0, 0, 0,
  0, 0, 0, 0,
- 0, chx_handle_intr, 0, 0,
+ 0, memory_error, 0, 0,
 };
 
 static void
