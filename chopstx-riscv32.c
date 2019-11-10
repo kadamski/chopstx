@@ -33,7 +33,7 @@
  */
 asm (
 	".equ	msubm,0x7c4\n\t"
-	".equ	mtvt,0x307\n\t"   /* Not used. */
+	".equ	mtvt,0x307\n\t"
 	".equ	mtvt2,0x7ec\n\t"
 	".equ	wfe,0x810\n\t"    /* Not used (yet). */
 	".equ	sleepvalue,0x811" /* Not used (yet). */
@@ -218,10 +218,11 @@ chx_set_intr_prio (uint8_t irq_num)
 
 #define TIMER_IRQ 7
 
-static void __attribute__ ((naked)) chx_handle_intr (void);
-static void __attribute__ ((naked)) exception_handler (void);
+static void chx_handle_intr (void);
+static void exception_handler (void);
 
-static void
+/* Alignment to 64 is needed to enable ECLIC mode.  */
+static void __attribute__ ((naked,aligned(64)))
 exception_handler (void)
 {
   asm volatile (
@@ -229,19 +230,37 @@ exception_handler (void)
         : /* no output */);
 }
 
+typedef void (*handler)(void);
+
+/* Not used (because we always disable SHV for all interrupts),
+ * Just in case, if some interrupt uses SHV=1.
+ */
+static const handler vector_table[] __attribute__ ((aligned(512))) = {
+ 0, 0, 0, chx_handle_intr,
+ 0, 0, 0, chx_handle_intr,
+ 0, 0, 0, 0,
+ 0, 0, 0, 0,
+ 0, chx_handle_intr, 0, 0,
+};
+
 static void
 chx_interrupt_controller_init (void)
 {
+  asm volatile (
+	"csrw	mtvt,%0"
+	: /* no output */ : "r" (vector_table) : "memory" );
+
   asm volatile (
 	"csrw	mtvt2,%0\n\t"
 	"csrsi	mtvt2,1"
 	: /* no output */ : "r" (chx_handle_intr) : "memory");
 
   asm volatile (
-	"csrw	mtvec,%0"
+	"csrw	mtvec,%0\n\t"
+	"csrsi	mtvec,3"        /* Enable ECLC mode */
 	: /* no output */ : "r" (exception_handler) : "memory" );
 
-  CLIC->cfg = 0;
+  CLIC->cfg &= 0xe1;            /* NLBITS = 0 */
   CLIC->mth = 0;
 
   /* In Bumblebee core, timer interrupt is also handled by CLIC.  */
@@ -520,7 +539,7 @@ running_preempted (struct chx_thread *tp_next)
  * Note: Examine the assembler output carefully, because it has
  * ((naked)) attribute
  */
-static void
+static void __attribute__ ((naked,aligned(4)))
 chx_handle_intr (void)
 {
   struct chx_thread *tp_next;
