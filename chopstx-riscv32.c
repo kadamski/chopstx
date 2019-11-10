@@ -327,7 +327,10 @@ voluntary_context_switch (struct chx_thread *tp_next)
   register uintptr_t result asm ("a0");
 
   asm volatile (
-	/* Here, %0 (a0) points to the thread context to be switched.  */
+	/* Here, %0 (a0) points to pointer (struct chx_thread *) to be
+         * switched.  We get the thread context pointer adding the
+         * offset.
+        */
 	"# Save registers\n\t"
 	"sw	sp,8(tp)\n\t"
 	"mv	sp,tp\n\t"      /* Using SP, we can use C.SWSP instruction */
@@ -353,6 +356,7 @@ voluntary_context_switch (struct chx_thread *tp_next)
 	"csrsi	mstatus,8\n\t"  /* Unmask interrupts.  */
 	"j	chx_idle\n"
     "0:\n\t"
+	"addi	%0,%0,20\n\t"
 	"mv	sp,%0\n\t"
 	"# Restore registers\n\t"
 	"lw	s0,32(sp)\n\t"
@@ -689,6 +693,7 @@ chx_handle_intr (void)
 	"sw	a0,128(sp)\n"
 	/**/
     "0:\n\t"
+	"addi	%0,%0,20\n\t"
 	"mv	sp,%0\n\t"
 	"# Restore registers\n\t"
 	"lw	s0,32(sp)\n\t"
