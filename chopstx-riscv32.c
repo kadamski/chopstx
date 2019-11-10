@@ -216,7 +216,9 @@ chx_set_intr_prio (uint8_t irq_num)
   CLIC_INT[irq_num].ctl = 0xff;
 }
 
-#define TIMER_IRQ 7
+#define SWINT_IRQ   3
+#define TIMER_IRQ   7
+#define MEMERR_IRQ 17           /* Why on earth it's IRQ??? */
 
 static void chx_handle_intr (void);
 static void exception_handler (void);
@@ -272,10 +274,23 @@ chx_interrupt_controller_init (void)
   CLIC->mth = 0;
 
   /* In Bumblebee core, timer interrupt is also handled by CLIC.  */
+  chx_set_intr_prio (SWINT_IRQ);
+  chx_enable_intr (SWINT_IRQ);
   chx_set_intr_prio (TIMER_IRQ);
   chx_enable_intr (TIMER_IRQ);
+  chx_set_intr_prio (MEMERR_IRQ);
+  chx_enable_intr (MEMERR_IRQ);
 }
 
+/* Just for testing.  Will be removed after testing.  */
+void
+chx_sw_int (int go)
+{
+  if (go)
+    TIMER->msip |= 1;
+  else
+    TIMER->msip &= ~1;
+}
 
 static void
 chx_cpu_sched_lock (void)
@@ -554,7 +569,7 @@ chx_handle_intr (void)
   uint32_t irq_num;
 
   /*
-   * stack setup to __main_stack_end__ 
+   * stack setup to __main_stack_end__
    * save registers.
    */
   asm volatile (
@@ -599,8 +614,18 @@ chx_handle_intr (void)
 	"srli	%0,%0,20"       /* Take lower 12-bit of MCAUSE */
         : "=r" (irq_num));
 
-  if (irq_num == TIMER_IRQ)
+  if (irq_num == SWINT_IRQ)
+    {
+      chx_sw_int (0);
+      tp_next = chx_timer_expired ();
+    }
+  else if (irq_num == TIMER_IRQ)
     tp_next = chx_timer_expired ();
+  else if (irq_num == MEMERR_IRQ)
+    {
+      tp_next = NULL;
+      memory_error ();
+    }
   else
     tp_next = chx_recv_irq (irq_num);
 
