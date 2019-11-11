@@ -1,7 +1,7 @@
 #define MAIN_SIZE 0x0080 /* Idle+Exception handlers  */
-#define SIZE_0 0x0100 /* Main program             */
-#define SIZE_1 0x0100 /* first thread program     */
-#define SIZE_2 0x0100 /* second thread program    */ 
+#define SIZE_0 0x0200 /* Main program             */
+#define SIZE_1 0x0200 /* first thread program     */
+#define SIZE_2 0x0200 /* second thread program    */
 
 #if defined(STACK_MAIN)
 /*
