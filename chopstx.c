@@ -399,7 +399,9 @@ chx_timer_expired (void)
 	if ((uint16_t)tp->prio > prio)
 	  prio = (uint16_t)tp->prio;
 
-      if (!ll_empty (&q_timer.q))
+      if (ll_empty (&q_timer.q))
+	chx_systick_reload (0);
+      else
 	{
 	  struct chx_thread *tp_next;
 

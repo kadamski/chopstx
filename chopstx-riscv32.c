@@ -57,6 +57,7 @@ chx_dmb (void)
 #define REG_GP    3
 #define REG_TP    4
 #define REG_A0   10
+#define MACHINE_STATUS_INIT 0x00001880
 
 /*
  * We keep the TP register to the thread context address.
@@ -137,9 +138,11 @@ chx_systick_reload (uint32_t ticks)
       TIMER->mstop |= 1;
       TIMER->mtimecmp_lo = 0xffffffff;
     }
-
-  TIMER->mtime_lo = 0;
-  TIMER->mtimecmp_lo = ticks;
+  else
+    {
+      TIMER->mtime_lo = 0;
+      TIMER->mtimecmp_lo = ticks;
+    }
 
   if (was_stopped && ticks)
     TIMER->mstop &= ~1;
@@ -148,12 +151,19 @@ chx_systick_reload (uint32_t ticks)
 static uint32_t
 chx_systick_get (void)
 {
-  uint32_t now = TIMER->mtime_lo;
+  int stopped = (TIMER->mstop & 1);
 
-  if (TIMER->mtimecmp_lo <= now)
+  if (stopped)
     return 0;
+  else
+    {
+      uint32_t now = TIMER->mtime_lo;
 
-  return TIMER->mtimecmp_lo - now;
+      if (TIMER->mtimecmp_lo <= now)
+        return 0;
+
+      return TIMER->mtimecmp_lo - now;
+    }
 }
 
 /* TIMER runs at 1/4 of core clock.  */
@@ -388,7 +398,7 @@ voluntary_context_switch (struct chx_thread *tp_next)
 	"lw	a1,0(sp)\n\t"
 	"beqz	a1,1f\n\t"
 	"# Restore all registers\n\t"
-	"csrw	mepc,a0\n\t"
+	"csrw	mepc,a1\n\t"
 	"lw	ra,4(sp)\n\t"
 	"lw	gp,12(sp)\n\t"
 	"lw	a3,52(sp)\n\t"
@@ -501,6 +511,7 @@ chopstx_create_arch (uintptr_t stack_addr, size_t stack_size,
   tp->tc.reg[REG_GP] = gp;
   tp->tc.reg[REG_TP] = (uint32_t)&tp->tc;
   tp->tc.reg[REG_SP] = (uint32_t)stack;
+  tp->tc.machine_status = MACHINE_STATUS_INIT;
 
   return tp;
 }
@@ -546,7 +557,6 @@ chx_recv_irq (uint32_t irq_num)
   return NULL;
 }
 
-#define TIMER_IRQ 7
 struct chx_thread * chx_timer_expired (void);
 
 static struct chx_thread * __attribute__ ((noinline))
