@@ -237,7 +237,7 @@ memory_error (void)
 {
   asm volatile (
 "0:	j	0b"
-        : /* no output */);
+	: /* no output */);
 }
 
 typedef void (*handler)(void);
@@ -616,7 +616,7 @@ chx_handle_intr (void)
   asm (	"csrr	%0,mcause\n\t"
 	"slli	%0,%0,20\n\t"
 	"srli	%0,%0,20"       /* Take lower 12-bit of MCAUSE */
-        : "=r" (irq_num));
+	: "=r" (irq_num));
 
   if (irq_num == SWINT_IRQ)
     {
