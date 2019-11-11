@@ -544,6 +544,9 @@ running_preempted (struct chx_thread *tp_next)
 {
   struct chx_thread *r = chx_running ();
 
+  if (r == NULL)
+    return tp_next;
+
   if (r->flag_sched_rr)
     {
       if (r->state == THREAD_RUNNING)
