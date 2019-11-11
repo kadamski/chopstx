@@ -130,9 +130,7 @@ chx_systick_init_arch (void)
 static void
 chx_systick_reload (uint32_t ticks)
 {
-  int was_stopped = 0;
-
-  was_stopped = (TIMER->mstop & 1);
+  int was_stopped = (TIMER->mstop & 1);
 
   if (!ticks)
     {
@@ -163,7 +161,13 @@ chx_systick_get (void)
 static uint32_t
 usec_to_ticks (uint32_t usec)
 {
-  return usec * MHZ / 4;
+  return usec * (MHZ/4);
+}
+
+static uint32_t
+ticks_to_usec (uint32_t ticks)
+{
+  return ticks / (MHZ/4);
 }
 
 /*
