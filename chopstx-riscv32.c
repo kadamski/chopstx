@@ -411,16 +411,36 @@ voluntary_context_switch (struct chx_thread *tp_next)
 	"lw	t5,120(sp)\n\t"
 	"lw	t6,124(sp)\n\t"
 	/**/
-	"lw	a0,128(sp)\n\t"
-	"lui	a1,0x00f00\n\t"
-	"and	a2,a0,a1\n\t"
-	"srli	a2,a2,14\n\t"
-	"csrw	msubm,a2\n\t"
-	"not	a1,a1\n\t"
-	"and	a0,a0,a1\n\t"
+        /*
+         * MSTATUS register:
+	 *   31:    SD
+	 *   16-15: XS (Extra Unit? state)
+	 *   14-13: FS (Floating-point Unit state)
+         *   12-11: MPP  (Previous Privilege)
+         *   7:     MPIE (Previous Interrupt Enable flag)
+         *   3:     MIE  (Interrupt Enable flag)
+         */
+        /*
+         * MSUBM register:
+         *   9-8 PTYP (Previous Type-of-execution)
+         *   7-6 TYP  (Currunt Type-of-execution)
+         *   0: Normal, 1: Interrupt, 2: Excep, 3: NMI
+         *
+         * Save MPP, MPIE, and PTYP in MACHINE_STATUS in the thread context.
+	 * (PTYP in bits of 1-0)
+         */
+	"lw	a0,128(sp)\n\t"	  /* MACHINE_STATUS */
+	"li	a1,0x03\n\t"
+	"and	a1,a0,a1\n\t"
+	"slli	a1,a1,8\n\t"
+	"ori	a1,a1,0x40\n\t"
+	"csrw	msubm,a1\n\t"     /* PTYP from MACHINE_STATUS, TYP=1 */
+	"li	a1,0x0188\n\t"
+	"slli	a1,a1,4\n\t"
+	"and	a0,a0,a1\n\t"     /* MPP, MPIE from MACHINE_STATUS  */
 	"csrr	a1,mstatus\n\t"
-	"srli	a1,a1,13\n\t"     /* Keep SD, XS, and FS bits */
-	"slli	a1,a1,13\n\t"
+	"srli	a1,a1,13\n\t"
+	"slli	a1,a1,13\n\t"     /* SD, XS, and FS bits from MSTATUS */
 	"or	a0,a0,a1\n\t"
 	"csrw	mstatus,a0\n\t"
 	/**/
@@ -705,11 +725,12 @@ chx_handle_intr (void)
 	"sw	s10,104(sp)\n\t"
 	"sw	s11,108(sp)\n\t"
 	"csrr	a0,mstatus\n\t"
-	"slli	a0,a0,19\n\t"
-	"srli	a0,a0,19\n\t"     /* Clear SD, XS, and FS bits, no save */
+	"li	a1,0x0188\n\t"
+	"slli	a1,a1,4\n\t"
+	"and	a0,a0,a1\n\t"     /* MPP, MPIE from MSTATUS  */
 	"csrr	a1,msubm\n\t"
-	"slli	a1,a1,14\n\t"
-	"or	a0,a0,a1\n\t"
+	"slli	a1,a1,8\n\t"      /* PTYP from MSUBM */
+	"or	a0,a0,a1\n\t"     /* ... into MACHINE_STATUS */
 	"sw	a0,128(sp)\n"
 	/**/
     "0:\n\t"
@@ -766,16 +787,18 @@ chx_handle_intr (void)
 	"lw	t5,120(sp)\n\t"
 	"lw	t6,124(sp)\n\t"
 	/**/
-	"lw	a0,128(sp)\n\t"
-	"lui	a1,0x00f00\n\t"
-	"and	a2,a0,a1\n\t"
-	"srli	a2,a2,14\n\t"
-	"csrw	msubm,a2\n\t"
-	"not	a1,a1\n\t"
-	"and	a0,a0,a1\n\t"
+	"lw	a0,128(sp)\n\t"	  /* MACHINE_STATUS */
+	"li	a1,0x03\n\t"
+	"and	a1,a0,a1\n\t"
+	"slli	a1,a1,8\n\t"
+	"ori	a1,a1,0x40\n\t"
+	"csrw	msubm,a1\n\t"     /* PTYP from MACHINE_STATUS, TYP=1 */
+	"li	a1,0x0188\n\t"
+	"slli	a1,a1,4\n\t"
+	"and	a0,a0,a1\n\t"     /* MPP, MPIE from MACHINE_STATUS  */
 	"csrr	a1,mstatus\n\t"
-	"srli	a1,a1,13\n\t"     /* Keep SD, XS, and FS bits */
-	"slli	a1,a1,13\n\t"
+	"srli	a1,a1,13\n\t"
+	"slli	a1,a1,13\n\t"     /* SD, XS, and FS bits from MSTATUS */
 	"or	a0,a0,a1\n\t"
 	"csrw	mstatus,a0\n\t"
 	/**/
