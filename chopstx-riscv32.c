@@ -131,8 +131,6 @@ chx_systick_init_arch (void)
 static void
 chx_systick_reload (uint32_t ticks)
 {
-  int was_stopped = (TIMER->mstop & 1);
-
   if (!ticks)
     {
       TIMER->mstop |= 1;
@@ -142,10 +140,9 @@ chx_systick_reload (uint32_t ticks)
     {
       TIMER->mtime_lo = 0;
       TIMER->mtimecmp_lo = ticks;
+      if ((TIMER->mstop & 1))
+	TIMER->mstop &= ~1;
     }
-
-  if (was_stopped && ticks)
-    TIMER->mstop &= ~1;
 }
 
 static uint32_t
@@ -302,8 +299,8 @@ chx_interrupt_controller_init (void)
   chx_enable_intr (MEMERR_IRQ);
 }
 
-/* Just for testing.  Will be removed after testing.  */
-void
+/* Just for testing TIMER and ECLIC.  No real use for now.  */
+static void
 chx_sw_int (int go)
 {
   if (go)
@@ -643,8 +640,8 @@ chx_handle_intr (void)
 
   if (irq_num == SWINT_IRQ)
     {
+      tp_next = NULL;
       chx_sw_int (0);
-      tp_next = chx_timer_expired ();
     }
   else if (irq_num == TIMER_IRQ)
     tp_next = chx_timer_expired ();
