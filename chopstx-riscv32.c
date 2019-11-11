@@ -130,14 +130,20 @@ chx_systick_init_arch (void)
 static void
 chx_systick_reload (uint32_t ticks)
 {
-  uint32_t ticks_old;
+  int was_stopped = 0;
+
+  was_stopped = (TIMER->mstop & 1);
 
   if (!ticks)
-    TIMER->mstop |= 1;
+    {
+      TIMER->mstop |= 1;
+      TIMER->mtimecmp_lo = 0xffffffff;
+    }
+
   TIMER->mtime_lo = 0;
-  ticks_old = TIMER->mtimecmp_lo;
   TIMER->mtimecmp_lo = ticks;
-  if (!ticks_old && ticks)
+
+  if (was_stopped && ticks)
     TIMER->mstop &= ~1;
 }
 
