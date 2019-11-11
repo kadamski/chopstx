@@ -481,13 +481,15 @@ voluntary_context_switch (struct chx_thread *tp_next)
 static uintptr_t __attribute__ ((noinline))
 chx_sched (uint32_t yield)
 {
-  struct chx_thread *tp = chx_running ();
+  struct chx_thread *tp;
 
   if (yield)
     {
-      if (tp->flag_sched_rr)
-	chx_timer_dequeue (tp);
-      chx_ready_enqueue (tp);
+      struct chx_thread *r = chx_running ();
+
+      if (r->flag_sched_rr)
+	chx_timer_dequeue (r);
+      chx_ready_enqueue (r);
     }
 
   tp = chx_ready_pop ();
