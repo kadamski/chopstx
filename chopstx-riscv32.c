@@ -433,7 +433,6 @@ voluntary_context_switch (struct chx_thread *tp_next)
 	"li	a1,0x03\n\t"
 	"and	a1,a0,a1\n\t"
 	"slli	a1,a1,8\n\t"
-	// "ori	a1,a1,0x40\n\t"
 	"csrw	msubm,a1\n\t"     /* PTYP from MACHINE_STATUS, TYP=0 */
 	"li	a1,0x0188\n\t"
 	"slli	a1,a1,4\n\t"
