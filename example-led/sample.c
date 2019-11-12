@@ -41,6 +41,29 @@ set_led_r (void)
 }
 
 void
+set_led_y (void)
+{
+  GPIOA->ODR &= ~(1 << 1);
+  GPIOA->ODR |= (1 << 2);
+  GPIOC->ODR &= ~(1 << 13);
+}
+
+void
+set_led_v (void)
+{
+  GPIOA->ODR |= (1 << 1);
+  GPIOA->ODR &= ~(1 << 2);
+  GPIOC->ODR &= ~(1 << 13);
+}
+
+void
+set_led_c (void)
+{
+  GPIOA->ODR &= ~((1 << 2)|(1 << 1));
+  GPIOC->ODR |= (1 << 13);
+}
+
+void
 set_led_g (void)
 {
   GPIOA->ODR &= ~(1 << 1);
@@ -99,16 +122,27 @@ pwm (void *arg)
 
   while (1)
     {
+      set_led (u&v);
+      wait_for (m);
+      set_led (0);
+      wait_for (100-m);
+    }
+
+  while (1)
+    {
 #if 0
       set_led (u&v);
       wait_for (m);
       set_led (0);
       wait_for (100-m);
 #else
-      wait_for (300*1000);
-      set_led (1);
-      wait_for (300*1000);
-      set_led (0);
+      set_led_g ();
+      busy_wait_for (1000*1000);
+      wait_for (800*1000);
+      set_led_0 ();
+      wait_for (800*1000);
+      set_led_r ();
+      wait_for (800*1000);
 #endif
     }
 
@@ -155,7 +189,6 @@ blk (void *arg)
 #define STACK_ADDR_BLK ((uint32_t)process2_base)
 #define STACK_SIZE_BLK (sizeof process2_base)
 
-// static uint8_t *x = (uint8_t *)0x20001000;
 
 int
 main (int argc, const char *argv[])
@@ -167,14 +200,10 @@ main (int argc, const char *argv[])
   chopstx_cond_init (&cnd0);
   chopstx_cond_init (&cnd1);
 
-  m = 10;
+  m = 50;
 
   chopstx_create (PRIO_PWM, STACK_ADDR_PWM, STACK_SIZE_PWM, pwm, NULL);
-  // chopstx_create (PRIO_BLK, STACK_ADDR_BLK, STACK_SIZE_BLK, blk, NULL);
-
-  chopstx_usec_wait (200*1000);
-
-  set_led_r ();
+  chopstx_create (PRIO_BLK, STACK_ADDR_BLK, STACK_SIZE_BLK, blk, NULL);
 
   chopstx_usec_wait (200*1000);
 
@@ -183,18 +212,21 @@ main (int argc, const char *argv[])
   chopstx_cond_signal (&cnd1);
   chopstx_mutex_unlock (&mtx);
 
-  u = 1;
-  v = 1;
+  set_led_0 ();
+
+  while (1)
+    {
+      u ^= 1;
+      wait_for (200*1000*6);
+    }
 
   for (;;)
     {
-      set_led_w ();
-      busy_wait_for (1000*1000);
-      set_led_0 ();
-      busy_wait_for (1000*1000);
+      set_led_b ();
+      busy_wait_for (2000*1000);
+      set_led_y ();
+      busy_wait_for (2000*1000);
     }
-
-  wait_for (100*1000);
 
 #if 0
   asm volatile (
@@ -229,7 +261,7 @@ main (int argc, const char *argv[])
     {
 #if 0
       set_led_g ();
-      chopstx_usec_wait (1000*1000);
+      chopstx_usec_wait (10000*1000);
       set_led_b ();
 
       chopstx_usec_wait (1000*1000);
