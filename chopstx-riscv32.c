@@ -57,7 +57,7 @@ chx_dmb (void)
 #define REG_GP    3
 #define REG_TP    4
 #define REG_A0   10
-#define MACHINE_STATUS_INIT 0x00001880
+#define MACHINE_STATUS_INIT 0x00001880 /* Machine-mode, interrupt enabled.  */
 
 /*
  * We keep the TP register to the thread context address.
@@ -442,7 +442,7 @@ voluntary_context_switch (struct chx_thread *tp_next)
 	"srli	a1,a1,13\n\t"
 	"slli	a1,a1,13\n\t"     /* SD, XS, and FS bits from MSTATUS */
 	"or	a0,a0,a1\n\t"
-	"csrw	mstatus,a0\n\t"
+	"csrw	mstatus,a0\n\t"   /* Note: keep MIE=0 */
 	/**/
 	"lw	a0,40(sp)\n\t"
 	"lw	a1,44(sp)\n\t"
@@ -726,14 +726,14 @@ chx_handle_intr (void)
 	"sw	s9,100(sp)\n\t"
 	"sw	s10,104(sp)\n\t"
 	"sw	s11,108(sp)\n\t"
-	"csrr	a0,mstatus\n\t"
-	"li	a1,0x0188\n\t"
-	"slli	a1,a1,4\n\t"
-	"and	a0,a0,a1\n\t"     /* MPP, MPIE from MSTATUS  */
-	"csrr	a1,msubm\n\t"
-	"slli	a1,a1,8\n\t"      /* PTYP from MSUBM */
-	"or	a0,a0,a1\n\t"     /* ... into MACHINE_STATUS */
-	"sw	a0,128(sp)\n"
+	"csrr	a1,mstatus\n\t"
+	"li	a2,0x0188\n\t"
+	"slli	a2,a2,4\n\t"
+	"and	a1,a1,a2\n\t"     /* MPP, MPIE from MSTATUS  */
+	"csrr	a2,msubm\n\t"
+	"slli	a2,a2,8\n\t"      /* PTYP from MSUBM */
+	"or	a1,a1,a2\n\t"     /* ... into MACHINE_STATUS */
+	"sw	a1,128(sp)\n"
 	/**/
     "0:\n\t"
 	"addi	%0,%0,20\n\t"
@@ -802,7 +802,7 @@ chx_handle_intr (void)
 	"srli	a1,a1,13\n\t"
 	"slli	a1,a1,13\n\t"     /* SD, XS, and FS bits from MSTATUS */
 	"or	a0,a0,a1\n\t"
-	"csrw	mstatus,a0\n\t"
+	"csrw	mstatus,a0\n\t"   /* Note: keep MIE=0 */
 	/**/
 	"lw	a0,40(sp)\n\t"
 	"lw	a1,44(sp)\n\t"
