@@ -458,17 +458,17 @@ voluntary_context_switch (struct chx_thread *tp_next)
 	 *   7-6 TYP  (Currunt Type-of-execution)
 	 *   0: Normal, 1: Interrupt, 2: Excep, 3: NMI
 	 *
-	 * Save MPP, MPIE, and PTYP in MACHINE_STATUS in the thread context.
+	 * Save MPP..MPIE, and PTYP in MACHINE_STATUS in the thread context.
 	 * (PTYP in bits of 1-0)
 	 */
-	"lw	a0,128(sp)\n\t"	  /* MACHINE_STATUS */
+	"lw	a0,128(sp)\n\t"   /* MACHINE_STATUS */
 	"li	a1,0x03\n\t"
 	"and	a1,a0,a1\n\t"
 	"slli	a1,a1,8\n\t"
 	"csrw	msubm,a1\n\t"     /* PTYP from MACHINE_STATUS, TYP=0 */
-	"li	a1,0x0188\n\t"
+	"li	a1,0x01f8\n\t"
 	"slli	a1,a1,4\n\t"
-	"and	a0,a0,a1\n\t"     /* MPP, MPIE from MACHINE_STATUS  */
+	"and	a0,a0,a1\n\t"     /* MPP..MPIE from MACHINE_STATUS  */
 	"csrr	a1,mstatus\n\t"
 	"srli	a1,a1,13\n\t"
 	"slli	a1,a1,13\n\t"     /* SD, XS, and FS bits from MSTATUS */
@@ -712,13 +712,17 @@ chx_handle_intr (void)
 	"beqz	sp,0f\n\t"
 	"# Save registers\n\t"
 	SAVE_CALLEE_SAVE_REGISTERS
+	/*
+	 * MACHINE_STATUS = (MSTATUS & 0x01f80)
+	 *                | (MSUBM >> 8)
+	 */
 	"csrr	a1,mstatus\n\t"
-	"li	a2,0x0188\n\t"
-	"slli	a2,a2,4\n\t"
-	"and	a1,a1,a2\n\t"     /* MPP, MPIE from MSTATUS  */
-	"csrr	a2,msubm\n\t"
-	"slli	a2,a2,8\n\t"      /* PTYP from MSUBM */
-	"or	a1,a1,a2\n\t"     /* ... into MACHINE_STATUS */
+	"andi	a1,a1,-9\n\t"     /* Clear MIE (bit3) */
+	"slli	a1,a1,19\n\t"     /* Clear bit31 to bit13 */
+	"srli	a1,a1,19\n\t"     /* MPP..MPIE from MSTATUS  */
+	"csrr	a2,msubm\n\t"     /* PTYP (2-bit) from MSUBM */
+	"slli	a2,a2,8\n\t"
+	"or	a1,a1,a2\n\t"
 	"sw	a1,128(sp)\n"
 	/**/
     "0:\n\t"
@@ -756,9 +760,9 @@ chx_handle_intr (void)
 	"slli	a1,a1,8\n\t"
 	"ori	a1,a1,0x40\n\t"
 	"csrw	msubm,a1\n\t"     /* PTYP from MACHINE_STATUS, TYP=1 */
-	"li	a1,0x0188\n\t"
+	"li	a1,0x1f8\n\t"
 	"slli	a1,a1,4\n\t"
-	"and	a0,a0,a1\n\t"     /* MPP, MPIE from MACHINE_STATUS  */
+	"and	a0,a0,a1\n\t"     /* MPP..MPIE from MACHINE_STATUS  */
 	"csrr	a1,mstatus\n\t"
 	"srli	a1,a1,13\n\t"
 	"slli	a1,a1,13\n\t"     /* SD, XS, and FS bits from MSTATUS */
