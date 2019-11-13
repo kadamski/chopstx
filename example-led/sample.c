@@ -161,6 +161,7 @@ blk (void *arg)
   while (1)
     {
       v = 0;
+      set_led_g ();
       wait_for (200*1000);
       v = 1;
       wait_for (200*1000);
@@ -207,7 +208,8 @@ main (int argc, const char *argv[])
 
   chopstx_usec_wait (200*1000);
 
-  set_led_v ();
+  u = v = 1;
+  set_led_b ();
 
   chopstx_mutex_lock (&mtx);
   chopstx_cond_signal (&cnd0);
@@ -222,7 +224,6 @@ main (int argc, const char *argv[])
       wait_for (200*1000*6);
     }
 
-  u = 1;
   for (;;)
     {
       set_led_b ();
