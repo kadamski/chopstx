@@ -12,14 +12,14 @@
  *
  * For interrupt handling when it returns directly to original thread,
  * we can avoid saving all registers; It can only save registers used
- * in that handling.  When it retuns to another thread, that is, when
+ * in that handling.  When it returns to another thread, that is, when
  * it does involuntary context switch (also called "thread
  * preemption"), all registers should be saved.
  *
- * In Chopstx, we don't use nested interrupt of machine.  So, when it
- * a thread is interrupted, the interrupted context is always one of
- * application threads.  We have a dedicated stack for exception
- * handling.
+ * In Chopstx, we don't use nested interrupt of machine.  So, when a
+ * thread is interrupted, the interrupted context is always one of
+ * application threads or the idle thread.  We have a dedicated stack
+ * for exception handling.
  *
  * Here is RISC-V calling convention.
  *
