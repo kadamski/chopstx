@@ -123,7 +123,7 @@ pwm (void *arg)
   while (1)
     {
       set_led (u&v);
-      wait_for (1);
+      wait_for (2);
       set_led (0);
       wait_for (1);
     }
