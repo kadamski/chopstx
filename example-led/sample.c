@@ -123,9 +123,9 @@ pwm (void *arg)
   while (1)
     {
       set_led (u&v);
-      wait_for (m);
+      wait_for (1);
       set_led (0);
-      wait_for (100-m);
+      wait_for (1);
     }
 
   while (1)
@@ -207,6 +207,8 @@ main (int argc, const char *argv[])
 
   chopstx_usec_wait (200*1000);
 
+  set_led_v ();
+
   chopstx_mutex_lock (&mtx);
   chopstx_cond_signal (&cnd0);
   chopstx_cond_signal (&cnd1);
@@ -214,18 +216,19 @@ main (int argc, const char *argv[])
 
   set_led_0 ();
 
-  while (1)
+  while (0)
     {
       u ^= 1;
       wait_for (200*1000*6);
     }
 
+  u = 1;
   for (;;)
     {
       set_led_b ();
-      busy_wait_for (2000*1000);
-      set_led_y ();
-      busy_wait_for (2000*1000);
+      busy_wait_for (10*1000);
+      set_led_0 ();
+      busy_wait_for (10*1000);
     }
 
 #if 0
