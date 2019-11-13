@@ -312,23 +312,13 @@ chx_sw_int (int go)
 static void
 chx_cpu_sched_lock (void)
 {
-  struct chx_thread *r = chx_running ();
-
-  if (r->prio < CHOPSTX_PRIO_INHIBIT_PREEMPTION)
-    asm volatile (
-	"csrci	mstatus,8"
-	: : : "memory" );
+  asm volatile ("csrci	mstatus,8" : : : "memory" );
 }
 
 static void
 chx_cpu_sched_unlock (void)
 {
-  struct chx_thread *r = chx_running ();
-
-  if (r->prio < CHOPSTX_PRIO_INHIBIT_PREEMPTION)
-    asm volatile (
-	"csrsi	mstatus,8"
-	: : : "memory" );
+  asm volatile ("csrsi	mstatus,8" : : : "memory" );
 }
 
 static void
