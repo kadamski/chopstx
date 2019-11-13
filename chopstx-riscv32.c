@@ -456,7 +456,7 @@ voluntary_context_switch (struct chx_thread *tp_next)
 	"and	a1,a0,a1\n\t"
 	"slli	a1,a1,8\n\t"
 	"csrw	msubm,a1\n\t"     /* PTYP from MACHINE_STATUS, TYP=0 */
-	"li	a1,0x01f8\n\t"
+	"li	a1,0x1f8\n\t"
 	"slli	a1,a1,4\n\t"
 	"and	a0,a0,a1\n\t"     /* MPP..MPIE from MACHINE_STATUS  */
 	"csrr	a1,mstatus\n\t"
@@ -703,7 +703,7 @@ chx_handle_intr (void)
 	"# Save registers\n\t"
 	SAVE_CALLEE_SAVE_REGISTERS
 	/*
-	 * MACHINE_STATUS = (MSTATUS & 0x01f80)
+	 * MACHINE_STATUS = (MSTATUS & 0x00001f80)
 	 *                | (MSUBM >> 8)
 	 */
 	"csrr	a1,mstatus\n\t"
@@ -731,14 +731,11 @@ chx_handle_intr (void)
 	"lw	sp,8(sp)\n\t"
 	"la	a1,.L_CONTEXT_SWITCH_FINISH\n\t"
 	"csrw	mepc,a1\n\t"
-	"csrr	a1,mstatus\n\t"
-	"li	a2,0x188\n\t"     /* Set MPIE and MPP... */
-	"slli	a2,a2,4\n\t"      /* ... by shifting 4-bit left */
-	"or	a1,a1,a2\n\t"
-	"csrw	mstatus,a1\n\t"   /* Prev: Machine mode, enable interrupt */
-	"csrr	a1,msubm\n\t"
-	"andi	a1,a1,0x00c0\n\t"
-	"csrw	msubm,a1\n\t"     /* Prev: No-trap */
+	"li	a1,0x188\n\t"     /* Set MPIE and MPP bits */
+	"slli	a1,a1,4\n\t"
+	"csrrs	x0,mstatus,a1\n\t"/* Prev: Machine mode, enable interrupt */
+	"li	a1,0x0300\n\t"    /* Clear PTYP bits */
+	"csrrc	x0,msubm,a1\n\t"  /* Prev: No-trap */
 	"mret\n"                  /* Return to Prev  */
     "1:\n\t"
 	"# Restore all registers\n\t"
