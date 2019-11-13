@@ -157,7 +157,7 @@ chx_systick_get (void)
       uint32_t now = TIMER->mtime_lo;
 
       if (TIMER->mtimecmp_lo <= now)
-        return 0;
+	return 0;
 
       return TIMER->mtimecmp_lo - now;
     }
@@ -246,7 +246,7 @@ exception_handler (void)
 {
   asm volatile (
 "0:	j	0b"
-        : /* no output */);
+	: /* no output */);
 }
 
 static void __attribute__ ((naked))
@@ -338,6 +338,75 @@ chx_init_arch (struct chx_thread *tp)
   chx_set_running (tp);
 }
 
+#define SAVE_CALLEE_SAVE_REGISTERS \
+	"sw	s0,32(sp)\n\t"     \
+	"sw	s1,36(sp)\n\t"     \
+	"sw	s2,72(sp)\n\t"     \
+	"sw	s3,76(sp)\n\t"     \
+	"sw	s4,80(sp)\n\t"     \
+	"sw	s5,84(sp)\n\t"     \
+	"sw	s6,88(sp)\n\t"     \
+	"sw	s7,92(sp)\n\t"     \
+	"sw	s8,96(sp)\n\t"     \
+	"sw	s9,100(sp)\n\t"    \
+	"sw	s10,104(sp)\n\t"   \
+	"sw	s11,108(sp)\n\t"
+
+#define RESTORE_CALLEE_SAVE_REGISTERS \
+	"lw	s0,32(sp)\n\t"        \
+	"lw	s1,36(sp)\n\t"        \
+	"lw	s2,72(sp)\n\t"        \
+	"lw	s3,76(sp)\n\t"        \
+	"lw	s4,80(sp)\n\t"        \
+	"lw	s5,84(sp)\n\t"        \
+	"lw	s6,88(sp)\n\t"        \
+	"lw	s7,92(sp)\n\t"        \
+	"lw	s8,96(sp)\n\t"        \
+	"lw	s9,100(sp)\n\t"       \
+	"lw	s10,104(sp)\n\t"      \
+	"lw	s11,108(sp)\n\t"
+
+#define SAVE_OTHER_REGISTERS_PLUS_A0A1 \
+	"sw	ra,4(sp)\n\t"          \
+	"sw	gp,12(sp)\n\t"         \
+	"sw	t0,20(sp)\n\t"         \
+	"sw	t1,24(sp)\n\t"         \
+	"sw	t2,28(sp)\n\t"         \
+	"sw	a0,40(sp)\n\t"         \
+	"sw	a1,44(sp)\n\t"         \
+	"sw	a2,48(sp)\n\t"         \
+	"sw	a3,52(sp)\n\t"         \
+	"sw	a4,56(sp)\n\t"         \
+	"sw	a5,60(sp)\n\t"         \
+	"sw	a6,64(sp)\n\t"         \
+	"sw	a7,68(sp)\n\t"         \
+	"sw	t3,112(sp)\n\t"        \
+	"sw	t4,116(sp)\n\t"        \
+	"sw	t5,120(sp)\n\t"        \
+	"sw	t6,124(sp)\n\t"
+
+#define RESTORE_OTHER_REGISTERS_SANS_A0A1 \
+	"lw	ra,4(sp)\n\t"             \
+	"lw	gp,12(sp)\n\t"            \
+	"lw	t0,20(sp)\n\t"            \
+	"lw	t1,24(sp)\n\t"            \
+	"lw	t2,28(sp)\n\t"            \
+	"lw	a2,48(sp)\n\t"            \
+	"lw	a3,52(sp)\n\t"            \
+	"lw	a4,56(sp)\n\t"            \
+	"lw	a5,60(sp)\n\t"            \
+	"lw	a6,64(sp)\n\t"            \
+	"lw	a7,68(sp)\n\t"            \
+	"lw	t3,112(sp)\n\t"           \
+	"lw	t4,116(sp)\n\t"           \
+	"lw	t5,120(sp)\n\t"           \
+	"lw	t6,124(sp)\n\t"
+
+#define RESTORE_A0A1_REGISTERS      \
+	"lw	a0,40(sp)\n\t"      \
+	"lw	a1,44(sp)\n\t"
+
+
 static uintptr_t
 voluntary_context_switch (struct chx_thread *tp_next)
 {
@@ -345,25 +414,14 @@ voluntary_context_switch (struct chx_thread *tp_next)
 
   asm volatile (
 	/* Here, %0 (a0) points to pointer (struct chx_thread *) to be
-         * switched.  We get the thread context pointer adding the
-         * offset.
-        */
+	 * switched.  We get the thread context pointer adding the
+	 * offset.
+	*/
 	"# Save registers\n\t"
 	"sw	sp,8(tp)\n\t"
 	"mv	sp,tp\n\t"      /* Using SP, we can use C.SWSP instruction */
 	"sw	zero,0(sp)\n\t"
-	"sw	s0,32(sp)\n\t"
-	"sw	s1,36(sp)\n\t"
-	"sw	s2,72(sp)\n\t"
-	"sw	s3,76(sp)\n\t"
-	"sw	s4,80(sp)\n\t"
-	"sw	s5,84(sp)\n\t"
-	"sw	s6,88(sp)\n\t"
-	"sw	s7,92(sp)\n\t"
-	"sw	s8,96(sp)\n\t"
-	"sw	s9,100(sp)\n\t"
-	"sw	s10,104(sp)\n\t"
-	"sw	s11,108(sp)\n\t"
+	SAVE_CALLEE_SAVE_REGISTERS
 	"# Check if going to IDLE thread\n\t"
 	"bnez	%0,0f\n\t"
 	"# Spawn an IDLE thread, interrupt enabled.\n\t"
@@ -376,19 +434,7 @@ voluntary_context_switch (struct chx_thread *tp_next)
 	"addi	%0,%0,20\n\t"
 	"mv	sp,%0\n\t"
 	"# Restore registers\n\t"
-	"lw	s0,32(sp)\n\t"
-	"lw	s1,36(sp)\n\t"
-	"lw	s2,72(sp)\n\t"
-	"lw	s3,76(sp)\n\t"
-	"lw	s4,80(sp)\n\t"
-	"lw	s5,84(sp)\n\t"
-	"lw	s6,88(sp)\n\t"
-	"lw	s7,92(sp)\n\t"
-	"lw	s8,96(sp)\n\t"
-	"lw	s9,100(sp)\n\t"
-	"lw	s10,104(sp)\n\t"
-	"lw	s11,108(sp)\n\t"
-	/**/
+	RESTORE_CALLEE_SAVE_REGISTERS
 	"lw	a0,-4(sp)\n\t"  /* Get the result value */
 	/**/
 	"csrw	mscratch,sp\n\t"
@@ -396,39 +442,25 @@ voluntary_context_switch (struct chx_thread *tp_next)
 	"beqz	a1,1f\n\t"
 	"# Restore all registers\n\t"
 	"csrw	mepc,a1\n\t"
-	"lw	ra,4(sp)\n\t"
-	"lw	gp,12(sp)\n\t"
-	"lw	a3,52(sp)\n\t"
-	"lw	a4,56(sp)\n\t"
-	"lw	a5,60(sp)\n\t"
-	"lw	a6,64(sp)\n\t"
-	"lw	a7,68(sp)\n\t"
-	"lw	t0,20(sp)\n\t"
-	"lw	t1,24(sp)\n\t"
-	"lw	t2,28(sp)\n\t"
-	"lw	t3,112(sp)\n\t"
-	"lw	t4,116(sp)\n\t"
-	"lw	t5,120(sp)\n\t"
-	"lw	t6,124(sp)\n\t"
-	/**/
-        /*
-         * MSTATUS register:
+	RESTORE_OTHER_REGISTERS_SANS_A0A1
+	/*
+	 * MSTATUS register:
 	 *   31:    SD
 	 *   16-15: XS (Extra Unit? state)
 	 *   14-13: FS (Floating-point Unit state)
-         *   12-11: MPP  (Previous Privilege)
-         *   7:     MPIE (Previous Interrupt Enable flag)
-         *   3:     MIE  (Interrupt Enable flag)
-         */
-        /*
-         * MSUBM register:
-         *   9-8 PTYP (Previous Type-of-execution)
-         *   7-6 TYP  (Currunt Type-of-execution)
-         *   0: Normal, 1: Interrupt, 2: Excep, 3: NMI
-         *
-         * Save MPP, MPIE, and PTYP in MACHINE_STATUS in the thread context.
+	 *   12-11: MPP  (Previous Privilege)
+	 *   7:     MPIE (Previous Interrupt Enable flag)
+	 *   3:     MIE  (Interrupt Enable flag)
+	 */
+	/*
+	 * MSUBM register:
+	 *   9-8 PTYP (Previous Type-of-execution)
+	 *   7-6 TYP  (Currunt Type-of-execution)
+	 *   0: Normal, 1: Interrupt, 2: Excep, 3: NMI
+	 *
+	 * Save MPP, MPIE, and PTYP in MACHINE_STATUS in the thread context.
 	 * (PTYP in bits of 1-0)
-         */
+	 */
 	"lw	a0,128(sp)\n\t"	  /* MACHINE_STATUS */
 	"li	a1,0x03\n\t"
 	"and	a1,a0,a1\n\t"
@@ -443,9 +475,7 @@ voluntary_context_switch (struct chx_thread *tp_next)
 	"or	a0,a0,a1\n\t"
 	"csrw	mstatus,a0\n\t"   /* Note: keep MIE=0 */
 	/**/
-	"lw	a0,40(sp)\n\t"
-	"lw	a1,44(sp)\n\t"
-	"lw	a2,48(sp)\n\t"
+	RESTORE_A0A1_REGISTERS
 	"lw	tp,16(sp)\n\t"    /* Application is free to other use of TP */
 	"lw	sp,8(sp)\n\t"
 	"mret\n"
@@ -588,10 +618,10 @@ running_preempted (struct chx_thread *tp_next)
   if (r->flag_sched_rr)
     {
       if (r->state == THREAD_RUNNING)
-        {
-          chx_timer_dequeue (r);
-          chx_ready_enqueue (r);
-        }
+	{
+	  chx_timer_dequeue (r);
+	  chx_ready_enqueue (r);
+	}
       /*
        * It may be THREAD_READY after chx_timer_expired.
        * Then, do nothing.
@@ -626,24 +656,7 @@ chx_handle_intr (void)
 	"j	1f\n"
     "0:\n\t"
 	"sw	tp,16(sp)\n\t"      /* Application is free to other use of TP */
-	"sw	ra,4(sp)\n\t"
-	"sw	gp,12(sp)\n\t"
-	"sw	t0,20(sp)\n\t"
-	"sw	t1,24(sp)\n\t"
-	"sw	t2,28(sp)\n\t"
-	"sw	a0,40(sp)\n\t"
-	"sw	a1,44(sp)\n\t"
-	"sw	a2,48(sp)\n\t"
-	"sw	a3,52(sp)\n\t"
-	"sw	a4,56(sp)\n\t"
-	"sw	a5,60(sp)\n\t"
-	"sw	a6,64(sp)\n\t"
-	"sw	a7,68(sp)\n\t"
-	"sw	t3,112(sp)\n\t"
-	"sw	t4,116(sp)\n\t"
-	"sw	t5,120(sp)\n\t"
-	"sw	t6,124(sp)\n\t"
-	/**/
+	SAVE_OTHER_REGISTERS_PLUS_A0A1
 	"csrr	a0,mepc\n\t"
 	"sw	a0,0(sp)\n\t"
 	/**/
@@ -685,23 +698,8 @@ chx_handle_intr (void)
     "0:\n\t"
 	"mv	sp,tp\n\t"      /* Using SP, we can use C.SWSP instruction */
 	"# Restore registers\n\t"
-	"lw	ra,4(sp)\n\t"
-	"lw	gp,12(sp)\n\t"
-	"lw	t0,20(sp)\n\t"
-	"lw	t1,24(sp)\n\t"
-	"lw	t2,28(sp)\n\t"
-	"lw	a0,40(sp)\n\t"
-	"lw	a1,44(sp)\n\t"
-	"lw	a2,48(sp)\n\t"
-	"lw	a3,52(sp)\n\t"
-	"lw	a4,56(sp)\n\t"
-	"lw	a5,60(sp)\n\t"
-	"lw	a6,64(sp)\n\t"
-	"lw	a7,68(sp)\n\t"
-	"lw	t3,112(sp)\n\t"
-	"lw	t4,116(sp)\n\t"
-	"lw	t5,120(sp)\n\t"
-	"lw	t6,124(sp)\n\t"
+	RESTORE_OTHER_REGISTERS_SANS_A0A1
+	RESTORE_A0A1_REGISTERS
 	"lw	tp,16(sp)\n\t" /* Application is free to other use of TP */
 	"lw	sp,8(sp)\n\t"
 	"mret");
@@ -709,22 +707,11 @@ chx_handle_intr (void)
   tp_next = running_preempted (tp_next);
 
   asm volatile (
-        "# Involuntary context switch\n\t"
+	"# Involuntary context switch\n\t"
 	"mv	sp,tp\n\t"      /* Using SP, we can use C.SWSP instruction */
 	"beqz	sp,0f\n\t"
 	"# Save registers\n\t"
-	"sw	s0,32(sp)\n\t"
-	"sw	s1,36(sp)\n\t"
-	"sw	s2,72(sp)\n\t"
-	"sw	s3,76(sp)\n\t"
-	"sw	s4,80(sp)\n\t"
-	"sw	s5,84(sp)\n\t"
-	"sw	s6,88(sp)\n\t"
-	"sw	s7,92(sp)\n\t"
-	"sw	s8,96(sp)\n\t"
-	"sw	s9,100(sp)\n\t"
-	"sw	s10,104(sp)\n\t"
-	"sw	s11,108(sp)\n\t"
+	SAVE_CALLEE_SAVE_REGISTERS
 	"csrr	a1,mstatus\n\t"
 	"li	a2,0x0188\n\t"
 	"slli	a2,a2,4\n\t"
@@ -738,18 +725,7 @@ chx_handle_intr (void)
 	"addi	%0,%0,20\n\t"
 	"mv	sp,%0\n\t"
 	"# Restore registers\n\t"
-	"lw	s0,32(sp)\n\t"
-	"lw	s1,36(sp)\n\t"
-	"lw	s2,72(sp)\n\t"
-	"lw	s3,76(sp)\n\t"
-	"lw	s4,80(sp)\n\t"
-	"lw	s5,84(sp)\n\t"
-	"lw	s6,88(sp)\n\t"
-	"lw	s7,92(sp)\n\t"
-	"lw	s8,96(sp)\n\t"
-	"lw	s9,100(sp)\n\t"
-	"lw	s10,104(sp)\n\t"
-	"lw	s11,108(sp)\n\t"
+	RESTORE_CALLEE_SAVE_REGISTERS
 	/**/
 	"csrw	mscratch,sp\n\t"
 	"lw	a0,0(sp)\n\t"
@@ -773,21 +749,7 @@ chx_handle_intr (void)
     "1:\n\t"
 	"# Restore all registers\n\t"
 	"csrw	mepc,a0\n\t"
-	"lw	ra,4(sp)\n\t"
-	"lw	gp,12(sp)\n\t"
-	"lw	a3,52(sp)\n\t"
-	"lw	a4,56(sp)\n\t"
-	"lw	a5,60(sp)\n\t"
-	"lw	a6,64(sp)\n\t"
-	"lw	a7,68(sp)\n\t"
-	"lw	t0,20(sp)\n\t"
-	"lw	t1,24(sp)\n\t"
-	"lw	t2,28(sp)\n\t"
-	"lw	t3,112(sp)\n\t"
-	"lw	t4,116(sp)\n\t"
-	"lw	t5,120(sp)\n\t"
-	"lw	t6,124(sp)\n\t"
-	/**/
+	RESTORE_OTHER_REGISTERS_SANS_A0A1
 	"lw	a0,128(sp)\n\t"	  /* MACHINE_STATUS */
 	"li	a1,0x03\n\t"
 	"and	a1,a0,a1\n\t"
@@ -803,9 +765,7 @@ chx_handle_intr (void)
 	"or	a0,a0,a1\n\t"
 	"csrw	mstatus,a0\n\t"   /* Note: keep MIE=0 */
 	/**/
-	"lw	a0,40(sp)\n\t"
-	"lw	a1,44(sp)\n\t"
-	"lw	a2,48(sp)\n\t"
+	RESTORE_A0A1_REGISTERS
 	"lw	tp,16(sp)\n\t" /* Application is free to other use of TP */
 	"lw	sp,8(sp)\n\t"
 	"mret"
