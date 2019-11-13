@@ -387,7 +387,9 @@ chx_timer_expired (void)
   uint16_t prio = 0;			/* Use uint16_t here. */
 
   chx_spin_lock (&q_timer.lock);
-  if ((tp = (struct chx_thread *)ll_pop (&q_timer.q)))
+  if (!(tp = (struct chx_thread *)ll_pop (&q_timer.q)))
+    chx_systick_reload (0);
+  else
     {
       uint32_t next_tick = tp->v;
 
