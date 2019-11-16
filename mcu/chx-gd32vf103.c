@@ -9,9 +9,3 @@ chx_sleep_mode (int how)
   /*TBD*/
   (void)how;
 }
-
-void
-chx_prepare_sleep_mode (void)
-{
-  /*TBD*/
-}

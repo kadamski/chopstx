@@ -237,10 +237,7 @@ chx_set_intr_prio (uint8_t irq_num)
 #define TIMER_IRQ   7
 #define MEMERR_IRQ 17           /* Why on earth it's IRQ??? */
 
-static void chx_idle (void);
 static void chx_handle_intr (void);
-static struct chx_thread * chx_recv_irq (uint32_t irq_num);
-
 static void exception_handler (void);
 
 /* Alignment to 64 is needed to enable ECLIC mode.  */
@@ -400,52 +397,22 @@ chx_init_arch (struct chx_thread *tp)
 	"lw	a1,44(sp)\n\t"
 
 
-struct chx_thread * chx_timer_expired (void);
 
-/*
- * The idle thread.
- *
- * NOTE: In this thread, interrupt is masked (MIE=0) and interrupt is
- * synchronously handled.
- */
-static void __attribute__((used,naked))
+static void __attribute__((naked))
 chx_idle (void)
 {
-  extern void chx_prepare_sleep_mode (void);
-  register struct chx_thread *tp_next asm ("a0");
+  /*TBD*/
+  int sleep_enabled;
 
   for (;;)
     {
-      uint32_t irq_num;
-
-      chx_prepare_sleep_mode ();
-
-      asm volatile (
-	"wfi\n\t"
-	"csrr	%0,mcause\n\t"
-	"slli	%0,%0,20\n\t"
-	"srli	%0,%0,20"       /* Take lower 12-bit of MCAUSE */
-	: "=r" (irq_num));
-
-      tp_next = NULL;
-      if (irq_num == SWINT_IRQ)
-	chx_sw_int (0);
-      else if (irq_num == TIMER_IRQ)
-	tp_next = chx_timer_expired ();
-      else if (irq_num == MEMERR_IRQ)
-	memory_error ();
-      else
-	tp_next = chx_recv_irq (irq_num);
-
-      if (tp_next)
-	break;
+      asm ("lw	%0,%1" : "=r" (sleep_enabled): "m" (chx_allow_sleep));
+      if (sleep_enabled)
+	{
+	  asm volatile ("wfi" : : : "memory");
+	  /* NOTE: it never comes here.  Don't add lines after this.  */
+	}
     }
-
-  asm volatile (
-	"j	.L_IV_CONTEXT_SWITCH_BEGIN"
-	: : "r" (tp_next));
-
-  /* NOTE: it never comes here.  Don't add lines after this.  */
 }
 
 
@@ -466,10 +433,11 @@ voluntary_context_switch (struct chx_thread *tp_next)
 	SAVE_CALLEE_SAVE_REGISTERS
 	"# Check if going to IDLE thread\n\t"
 	"bnez	%0,0f\n\t"
-	"# Spawn an IDLE thread, interrupt masked.\n\t"
+	"# Spawn an IDLE thread, interrupt enabled.\n\t"
 	"mv	tp,zero\n\t"
 	"csrw	mscratch,tp\n\t"
 	"la	sp,__main_stack_end__\n\t"
+	"csrsi	mstatus,8\n\t"  /* Unmask interrupts.  */
 	"j	chx_idle\n"
     "0:\n\t"
 	"addi	%0,%0,20\n\t"
@@ -524,7 +492,7 @@ voluntary_context_switch (struct chx_thread *tp_next)
 	"mv	tp,sp\n\t"
 	"lw	sp,8(sp)\n\t"
 	"csrsi	mstatus,8\n"  /* Unmask interrupts.  */
-    ".L_V_CONTEXT_SWITCH_FINISH:"
+    ".L_CONTEXT_SWITCH_FINISH:"
 	: "=r" (result)
 	: "0" (tp_next)
 	: "ra", "t0", "t1", "t2", "t3", "t4", "t5", "t6",
@@ -646,6 +614,7 @@ chx_recv_irq (uint32_t irq_num)
   return NULL;
 }
 
+struct chx_thread * chx_timer_expired (void);
 
 static struct chx_thread * __attribute__ ((noinline))
 running_preempted (struct chx_thread *tp_next)
@@ -689,6 +658,12 @@ chx_handle_intr (void)
    */
   asm volatile (
 	"csrrw	sp,mscratch,sp\n\t" /* SP to MSCRATCH, thread pointer into SP */
+	"# Check if it is IDLE thread\n\t"
+	"bnez	sp,0f\n\t"
+	"csrw	mscratch,sp\n\t"    /* Recover MSCRATCH, the thread pointer */
+	"mv	tp,zero\n\t"
+	"j	1f\n"
+    "0:\n\t"
 	"sw	tp,16(sp)\n\t"      /* Application is free to other use of TP */
 	SAVE_OTHER_REGISTERS_PLUS_A0A1
 	"csrr	a0,mepc\n\t"
@@ -696,7 +671,9 @@ chx_handle_intr (void)
 	/**/
 	"mv	tp,sp\n\t"          /* TP is now the thread pointer */
 	"csrrw	sp,mscratch,sp\n\t" /* TP to MSCRATCH, SP_old into SP */
-	"sw	sp,8(tp)\n\t"
+	"sw	sp,8(tp)\n"
+	/**/
+    "1:\n\t"
 	"la	sp,__main_stack_end__");
 
   asm (	"csrr	%0,mcause\n\t"
@@ -704,18 +681,30 @@ chx_handle_intr (void)
 	"srli	%0,%0,20"       /* Take lower 12-bit of MCAUSE */
 	: "=r" (irq_num));
 
-  tp_next = NULL;
   if (irq_num == SWINT_IRQ)
-    chx_sw_int (0);
+    {
+      tp_next = NULL;
+      chx_sw_int (0);
+    }
   else if (irq_num == TIMER_IRQ)
     tp_next = chx_timer_expired ();
   else if (irq_num == MEMERR_IRQ)
-    memory_error ();
+    {
+      tp_next = NULL;
+      memory_error ();
+    }
   else
     tp_next = chx_recv_irq (irq_num);
 
   if (!tp_next)
     asm volatile (
+	"bnez	tp,0f\n\t"
+	"# Spawn an IDLE thread.\n\t"
+	"la	sp,__main_stack_end__\n\t"
+	"la	a0,chx_idle\n\t"
+	"csrw	mepc,a0\n\t"
+	"mret\n"
+    "0:\n\t"
 	"mv	sp,tp\n\t"      /* Using SP, we can use C.SWSP instruction */
 	"# Restore registers\n\t"
 	RESTORE_OTHER_REGISTERS_SANS_A0A1
@@ -729,6 +718,7 @@ chx_handle_intr (void)
   asm volatile (
 	"# Involuntary context switch\n\t"
 	"mv	sp,tp\n\t"      /* Using SP, we can use C.SWSP instruction */
+	"beqz	sp,0f\n\t"
 	"# Save registers\n\t"
 	SAVE_CALLEE_SAVE_REGISTERS
 	/*
@@ -743,7 +733,8 @@ chx_handle_intr (void)
 	"slli	a2,a2,8\n\t"
 	"or	a1,a1,a2\n\t"
 	"sw	a1,128(sp)\n"
-    ".L_IV_CONTEXT_SWITCH_BEGIN:"
+	/**/
+    "0:\n\t"
 	"addi	%0,%0,20\n\t"
 	"mv	sp,%0\n\t"
 	"# Restore registers\n\t"
@@ -751,13 +742,13 @@ chx_handle_intr (void)
 	/**/
 	"csrw	mscratch,sp\n\t"
 	"lw	a0,0(sp)\n\t"
-	"bnez	a0,0f\n\t"
+	"bnez	a0,1f\n\t"
 	/**/
 	"lw	a0,-4(sp)\n\t"    /* Get the result value */
 	/**/
 	"mv	tp,sp\n\t"
 	"lw	sp,8(sp)\n\t"
-	"la	a1,.L_V_CONTEXT_SWITCH_FINISH\n\t"
+	"la	a1,.L_CONTEXT_SWITCH_FINISH\n\t"
 	"csrw	mepc,a1\n\t"
 	"li	a1,0x188\n\t"     /* Set MPIE and MPP bits */
 	"slli	a1,a1,4\n\t"
@@ -765,7 +756,7 @@ chx_handle_intr (void)
 	"li	a1,0x0300\n\t"    /* Clear PTYP bits */
 	"csrrc	x0,msubm,a1\n\t"  /* Prev: No-trap */
 	"mret\n"                  /* Return to Prev  */
-    "0:\n\t"
+    "1:\n\t"
 	"# Restore all registers\n\t"
 	"csrw	mepc,a0\n\t"
 	RESTORE_OTHER_REGISTERS_SANS_A0A1
