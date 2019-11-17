@@ -105,7 +105,7 @@ static struct chx_queue q_intr;
 
 /* Forward declaration(s). */
 static int chx_wakeup (struct chx_pq *p);
-static void chx_timer_insert (struct chx_thread *tp, uint32_t usec);
+static struct chx_thread *chx_timer_insert (struct chx_thread *tp, uint32_t usec);
 static uint32_t chx_timer_dequeue (struct chx_thread *tp);
 
 
@@ -313,7 +313,7 @@ chx_set_timer (struct chx_thread *tp, uint32_t ticks)
     tp->v = ticks;
 }
 
-static void
+static struct chx_thread *
 chx_timer_insert (struct chx_thread *tp, uint32_t usec)
 {
   struct chx_pq *p;
@@ -344,6 +344,8 @@ chx_timer_insert (struct chx_thread *tp, uint32_t usec)
       chx_set_timer ((struct chx_thread *)tp->prev, ticks);
       chx_set_timer (tp, 1);	/* Non-zero for the last entry. */
     }
+
+  return tp;
 }
 
 

@@ -1,10 +1,15 @@
 # Chopstx make rules.
 
-CSRC += $(CHOPSTX)/entry-$(CHIP).c
-CSRC += $(CHOPSTX)/chopstx.c
-
 INCDIR += /usr/local/picolibc/riscv64-unknown-elf/include
 LIBDIR += /usr/local/picolibc/riscv64-unknown-elf/lib/rv32imac/ilp32
+
+ifeq ($(EMULATION),)
+CSRC += $(CHOPSTX)/entry-$(CHIP).c
+else
+CSRC += $(CHOPSTX)/entry-gnu-linux.c
+endif
+
+CSRC += $(CHOPSTX)/chopstx.c
 
 ifneq ($(USE_EVENTFLAG),)
 CSRC += $(CHOPSTX)/eventflag.c
