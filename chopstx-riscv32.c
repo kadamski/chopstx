@@ -396,6 +396,28 @@ chx_init_arch (struct chx_thread *tp)
 	"lw	a0,40(sp)\n\t"      \
 	"lw	a1,44(sp)\n\t"
 
+/* It is good if ISA has a single instruction for this operation.  */
+#define CATCH_AN_INTERRUPT_SYNCHRONOUSLY                                     \
+	"mv	a0,zero\n"                                                   \
+    "0:\n\t"                                                                 \
+	/*                                                                   \
+	 * Interrupt is masked here, and it executes the WFI                 \
+	 * instruction.  When an interrupt occurs, the core is waken         \
+	 * up (even if it is masked).                                        \
+	 */                                                                  \
+	"csrci	mstatus,8\n\t"  /* Interrupt should be masked already.   */  \
+				/* Nevertheless, make sure it's masked.  */  \
+	"wfi\n\t"                                                            \
+	/*                                                                   \
+	 * It is good if MCAUSE were updated here, but it is only            \
+	 * updated when the control goes into the interrupt service,         \
+	 * in a step of the interrupt handling steps of the core.  So,       \
+	 * we let it go to chx_handle_intr, by unmasking.                    \
+	 */                                                                  \
+	"csrsi	mstatus,8\n\t"  /* Unmask interrupts to catch one.  */       \
+	/* Just before this line, it is interrupted.  */                     \
+	/* And interrupt is masked and a0 is set.     */                     \
+	"beqz	a0,0b\n\t"      /* Just in case if not, loop.  */
 
 struct chx_thread * chx_timer_expired (void);
 static struct chx_thread * chx_recv_irq (uint32_t irq_num);
@@ -419,19 +441,7 @@ chx_idle (void)
       chx_prepare_sleep_mode ();  /* MCU specific sleep setup */
 
       asm volatile (
-	/*
-	 * Interrupt is masked here, and it executes the WFI
-	 * instruction.  When an interrupt occurs, the core is waken
-	 * up (even if it is masked).
-	 */
-	"wfi\n\t"
-	/*
-	 * It is good if MCAUSE were updated here, but it is only
-	 * updated when the control goes into the interrupt service,
-	 * in a step of the interrupt handling steps of the core.  So,
-	 * we let it go to chx_handle_intr, by unmasking.
-	 */
-	"csrsi	mstatus,8\n\t"  /* Unmask interrupts to catch one.  */
+	CATCH_AN_INTERRUPT_SYNCHRONOUSLY
 	/*
 	 * In chx_handle_intr, a0 is set by the value of MCAUSE.
 	 */
