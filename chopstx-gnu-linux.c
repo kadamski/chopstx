@@ -39,10 +39,21 @@ chx_dmb (void)
 }
 
 
+static void chx_preempt_from_to (struct chx_thread *tp_prev,
+				 struct chx_thread *tp_next);
+
+static struct chx_thread *running;
+
+static struct chx_thread *
+chx_running (void)
+{
+  return running;
+}
+
 static sigset_t ss_cur;
 
 static void
-chx_systick_reset (void)
+chx_systick_init_arch (void)
 {
   const struct itimerval it = { {0, 0}, {0, 0} };
 
@@ -110,7 +121,7 @@ chx_set_intr_prio (uint8_t n)
 }
 
 static void
-chx_prio_init (void)
+chx_interrupt_controller_init (void)
 {
 }
 
@@ -139,22 +150,15 @@ idle (void)
 void
 chx_handle_intr (uint32_t irq_num)
 {
-  struct chx_pq *p;
+  struct chx_thread *tp_prev = chx_running ();
+  struct chx_thread *tp_next;
 
-  chx_disable_intr (irq_num);
-  chx_spin_lock (&q_intr.lock);
-  for (p = q_intr.q.next; p != (struct chx_pq *)&q_intr.q; p = p->next)
-    if (p->v == irq_num)
-      {			/* should be one at most. */
-	struct chx_px *px = (struct chx_px *)p;
+  tp_next = chx_recv_irq (irq_num);
+  if (!tp_next)
+    return;
 
-	ll_dequeue (p);
-	chx_wakeup (p);
-	chx_spin_unlock (&q_intr.lock);
-	chx_request_preemption (px->master->prio);
-	return;
-      }
-  chx_spin_unlock (&q_intr.lock);
+  tp_next = chx_running_preempted (tp_next);
+  chx_preempt_from_to (tp_prev, tp_next);
 }
 
 
@@ -178,11 +182,18 @@ chx_sigmask (ucontext_t *uc)
 static void
 sigalrm_handler (int sig, siginfo_t *siginfo, void *arg)
 {
-  extern void chx_timer_expired (void);
+  struct chx_thread *tp_prev = chx_running ();
+  struct chx_thread *tp_next;
   ucontext_t *uc = arg;
   (void)sig;
   (void)siginfo;
-  chx_timer_expired ();
+
+  tp_next = chx_timer_expired ();
+  if (tp_next)
+    {
+      tp_next = chx_running_preempted (tp_next);
+      chx_preempt_from_to (tp_prev, tp_next);
+    }
   chx_sigmask (uc);
 }
 
@@ -208,45 +219,9 @@ chx_init_arch (struct chx_thread *tp)
 }
 
 static void
-chx_request_preemption (uint16_t prio)
+chx_preempt_from_to (struct chx_thread *tp_prev, struct chx_thread *tp_next)
 {
-  struct chx_thread *tp, *tp_prev;
-  ucontext_t *tcp;
-
-  if (running && (uint16_t)running->prio >= prio)
-    return;
-
-  /* Change the context to another thread with higher priority.  */
-  tp = tp_prev = running;
-  if (tp)
-    {
-      if (tp->flag_sched_rr)
-	{
-	  if (tp->state == THREAD_RUNNING)
-	    {
-	      chx_timer_dequeue (tp);
-	      chx_ready_enqueue (tp);
-	    }
-	}
-      else
-	chx_ready_push (tp);
-      running = NULL;
-    }
-
-  tp = running = chx_ready_pop ();
-  if (tp)
-    {
-      tcp = &tp->tc;
-      if (tp->flag_sched_rr)
-	{
-	  chx_spin_lock (&q_timer.lock);
-	  tp = chx_timer_insert (tp, PREEMPTION_USEC);
-	  chx_spin_unlock (&q_timer.lock);
-	}
-    }
-  else
-    tcp = &idle_tc;
-
+  running = tp_next;
   if (tp_prev)
     {
       /*
@@ -265,11 +240,11 @@ chx_request_preemption (uint16_t prio)
        * of the thread, and the condition of chx_sched function which
        * mandates holding cpu_sched_lock.
        */
-      swapcontext (&tp_prev->tc, tcp);
+      swapcontext (&tp_prev->tc, &tp_next->tc);
     }
-  else if (tp)
+  else
     {
-      setcontext (tcp);
+      setcontext (&tp_next->tc);
     }
 }
 
@@ -294,7 +269,7 @@ chx_sched (uint32_t yield)
   uintptr_t v;
   ucontext_t *tcp;
 
-  tp = tp_prev = running;
+  tp = tp_prev = chx_running ();
   if (yield)
     {
       if (tp->flag_sched_rr)
@@ -306,12 +281,6 @@ chx_sched (uint32_t yield)
   if (tp)
     {
       v = tp->v;
-      if (tp->flag_sched_rr)
-	{
-	  chx_spin_lock (&q_timer.lock);
-	  tp = chx_timer_insert (tp, PREEMPTION_USEC);
-	  chx_spin_unlock (&q_timer.lock);
-	}
       tcp = &tp->tc;
     }
   else
