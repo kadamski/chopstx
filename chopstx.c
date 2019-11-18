@@ -510,12 +510,12 @@ chx_running_preempted (struct chx_thread *tp_next)
 void
 chx_systick_init (void)
 {
-  struct chx_thread *running = chx_running ();
-
   chx_systick_init_arch ();
 
   if ((CHX_FLAGS_MAIN & CHOPSTX_SCHED_RR))
     {
+      struct chx_thread *running = chx_running ();
+
       chx_cpu_sched_lock ();
       chx_spin_lock (&q_timer.lock);
       chx_timer_insert (running, PREEMPTION_USEC);
@@ -967,8 +967,8 @@ chopstx_cond_init (chopstx_cond_t *cond)
 void
 chopstx_cond_wait (chopstx_cond_t *cond, chopstx_mutex_t *mutex)
 {
-  int r;
   struct chx_thread *tp = chx_running ();
+  int r;
 
   chopstx_testcancel ();
   chx_cpu_sched_lock ();
