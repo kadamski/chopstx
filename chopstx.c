@@ -299,6 +299,10 @@ chx_ready_enqueue (struct chx_thread *tp)
   chx_spin_unlock (&q_ready.lock);
 }
 
+struct chx_thread *chx_timer_expired (void);
+static struct chx_thread *chx_recv_irq (uint32_t irq_num);
+static struct chx_thread *chx_running_preempted (struct chx_thread *tp_next);
+
 /*
  * Here comes architecture specific code.
  */
@@ -387,7 +391,7 @@ chx_timer_dequeue (struct chx_thread *tp)
 }
 
 
-struct chx_thread *
+struct chx_thread * __attribute__ ((noinline))
 chx_timer_expired (void)
 {
   struct chx_thread *tp;
@@ -473,6 +477,33 @@ chx_recv_irq (uint32_t irq_num)
     }
 
   return NULL;
+}
+
+
+static struct chx_thread * __attribute__ ((noinline))
+chx_running_preempted (struct chx_thread *tp_next)
+{
+  struct chx_thread *r = chx_running ();
+
+  if (r == NULL)
+    return tp_next;
+
+  if (r->flag_sched_rr)
+    {
+      if (r->state == THREAD_RUNNING)
+	{
+	  chx_timer_dequeue (r);
+	  chx_ready_enqueue (r);
+	}
+      /*
+       * It may be THREAD_READY after chx_timer_expired.
+       * Then, do nothing.
+       */
+    }
+  else
+    chx_ready_push (r);
+
+  return tp_next;
 }
 
 

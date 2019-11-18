@@ -419,9 +419,6 @@ chx_init_arch (struct chx_thread *tp)
 	/* And interrupt is masked and a0 is set.     */                     \
 	"beqz	a0,0b\n\t"      /* Just in case if not, loop.  */
 
-struct chx_thread * chx_timer_expired (void);
-static struct chx_thread * chx_recv_irq (uint32_t irq_num);
-
 /*
  * The idle thread.
  *
@@ -624,32 +621,6 @@ chopstx_create_arch (uintptr_t stack_addr, size_t stack_size,
 }
 
 
-static struct chx_thread * __attribute__ ((noinline))
-running_preempted (struct chx_thread *tp_next)
-{
-  struct chx_thread *r = chx_running ();
-
-  if (r == NULL)
-    return tp_next;
-
-  if (r->flag_sched_rr)
-    {
-      if (r->state == THREAD_RUNNING)
-	{
-	  chx_timer_dequeue (r);
-	  chx_ready_enqueue (r);
-	}
-      /*
-       * It may be THREAD_READY after chx_timer_expired.
-       * Then, do nothing.
-       */
-    }
-  else
-    chx_ready_push (r);
-
-  return tp_next;
-}
-
 /*
  * Note: Examine the assembler output carefully, because it has
  * ((naked)) attribute
@@ -710,7 +681,7 @@ chx_handle_intr (void)
 	"lw	sp,8(sp)\n\t"
 	"mret");
 
-  tp_next = running_preempted (tp_next);
+  tp_next = chx_running_preempted (tp_next);
 
   asm volatile (
 	"# Involuntary context switch\n\t"
