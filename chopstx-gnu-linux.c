@@ -39,8 +39,7 @@ chx_dmb (void)
 }
 
 
-static void chx_preempt_from_to (struct chx_thread *tp_prev,
-				 struct chx_thread *tp_next);
+static void chx_preempt_into (struct chx_thread *tp_next);
 
 static struct chx_thread *running;
 
@@ -141,16 +140,39 @@ chx_cpu_sched_unlock (void)
 }
 
 static void
-idle (void)
+chx_idle (void)
 {
+  struct chx_thread *tp_next;
+
+  /* All signals are masked.  */
   for (;;)
-    pause ();
+    {
+      int sig;
+      sigset_t set;
+
+      sigfillset (&set);
+      if (sigwait (&set, &sig))
+        continue;
+
+      if (sig == SIGALRM)
+        {
+          tp_next = chx_timer_expired ();
+          break;
+        }
+      else
+        {
+          tp_next = chx_recv_irq (sig);
+          break;
+        }
+    }
+
+  chx_preempt_into (tp_next);
+  /* Never come here.  */
 }
 
 void
 chx_handle_intr (uint32_t irq_num)
 {
-  struct chx_thread *tp_prev = chx_running ();
   struct chx_thread *tp_next;
 
   tp_next = chx_recv_irq (irq_num);
@@ -158,7 +180,7 @@ chx_handle_intr (uint32_t irq_num)
     return;
 
   tp_next = chx_running_preempted (tp_next);
-  chx_preempt_from_to (tp_prev, tp_next);
+  chx_preempt_into (tp_next);
 }
 
 
@@ -182,7 +204,6 @@ chx_sigmask (ucontext_t *uc)
 static void
 sigalrm_handler (int sig, siginfo_t *siginfo, void *arg)
 {
-  struct chx_thread *tp_prev = chx_running ();
   struct chx_thread *tp_next;
   ucontext_t *uc = arg;
   (void)sig;
@@ -192,7 +213,7 @@ sigalrm_handler (int sig, siginfo_t *siginfo, void *arg)
   if (tp_next)
     {
       tp_next = chx_running_preempted (tp_next);
-      chx_preempt_from_to (tp_prev, tp_next);
+      chx_preempt_into (tp_next);
     }
   chx_sigmask (uc);
 }
@@ -209,18 +230,21 @@ chx_init_arch (struct chx_thread *tp)
   sa.sa_flags = SA_SIGINFO|SA_RESTART;
   sigaction (SIGALRM, &sa, NULL); 
 
+  chx_cpu_sched_lock ();
   getcontext (&idle_tc);
   idle_tc.uc_stack.ss_sp = idle_stack;
   idle_tc.uc_stack.ss_size = sizeof (idle_stack);
   idle_tc.uc_link = NULL;
-  makecontext (&idle_tc, idle, 0);
+  makecontext (&idle_tc, chx_idle, 0);
+  chx_cpu_sched_unlock ();
 
   getcontext (&tp->tc);
 }
 
 static void
-chx_preempt_from_to (struct chx_thread *tp_prev, struct chx_thread *tp_next)
+chx_preempt_into (struct chx_thread *tp_next)
 {
+  struct chx_thread *tp_prev = chx_running ();
   running = tp_next;
   if (tp_prev)
     {
