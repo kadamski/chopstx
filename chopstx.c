@@ -270,6 +270,12 @@ chx_ready_pop (void)
     tp->state = THREAD_RUNNING;
   chx_spin_unlock (&q_ready.lock);
 
+  if (tp && tp->flag_sched_rr)
+    {
+      chx_spin_lock (&q_timer.lock);
+      chx_timer_insert (tp, PREEMPTION_USEC);
+      chx_spin_unlock (&q_timer.lock);
+    }
   return tp;
 }
 
@@ -438,6 +444,35 @@ chx_timer_expired (void)
     return chx_ready_pop ();
   else
     return NULL;
+}
+
+
+static struct chx_thread * __attribute__ ((noinline))
+chx_recv_irq (uint32_t irq_num)
+{
+  struct chx_pq *p;
+  struct chx_thread *r = chx_running ();
+
+  chx_disable_intr (irq_num);
+  chx_spin_lock (&q_intr.lock);
+  for (p = q_intr.q.next; p != (struct chx_pq *)&q_intr.q; p = p->next)
+    if (p->v == irq_num)
+      /* should be one at most.  */
+      break;
+  chx_spin_unlock (&q_intr.lock);
+
+  if (p)
+    {
+      struct chx_px *px = (struct chx_px *)p;
+
+      ll_dequeue (p);
+      chx_wakeup (p);
+
+      if (r == NULL || (uint16_t)r->prio < px->master->prio)
+        return chx_ready_pop ();
+    }
+
+  return NULL;
 }
 
 

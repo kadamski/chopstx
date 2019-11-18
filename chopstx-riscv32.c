@@ -588,13 +588,6 @@ chx_sched (uint32_t yield)
     }
 
   tp = chx_ready_pop ();
-  if (tp && tp->flag_sched_rr)
-    {
-      chx_spin_lock (&q_timer.lock);
-      chx_timer_insert (tp, PREEMPTION_USEC);
-      chx_spin_unlock (&q_timer.lock);
-    }
-
   return voluntary_context_switch (tp);
 }
 
@@ -628,47 +621,6 @@ chopstx_create_arch (uintptr_t stack_addr, size_t stack_size,
   tp->tc.machine_status = MACHINE_STATUS_INIT;
 
   return tp;
-}
-
-
-static struct chx_thread * __attribute__ ((noinline))
-chx_recv_irq (uint32_t irq_num)
-{
-  struct chx_pq *p;
-  struct chx_thread *r = chx_running ();
-
-  chx_disable_intr (irq_num);
-  chx_spin_lock (&q_intr.lock);
-  for (p = q_intr.q.next; p != (struct chx_pq *)&q_intr.q; p = p->next)
-    if (p->v == irq_num)
-      /* should be one at most.  */
-      break;
-  chx_spin_unlock (&q_intr.lock);
-
-  if (p)
-    {
-      struct chx_px *px = (struct chx_px *)p;
-
-      ll_dequeue (p);
-      chx_wakeup (p);
-
-      if (r == NULL || (uint16_t)r->prio < px->master->prio)
-	{
-	  struct chx_thread *tp;
-
-	  tp = chx_ready_pop ();
-	  if (tp && tp->flag_sched_rr)
-	    {
-	      chx_spin_lock (&q_timer.lock);
-	      chx_timer_insert (tp, PREEMPTION_USEC);
-	      chx_spin_unlock (&q_timer.lock);
-	    }
-
-	  return tp;
-	}
-    }
-
-  return NULL;
 }
 
 
