@@ -453,7 +453,7 @@ chx_init_arch (struct chx_thread *tp)
  * NOTE: In this thread, interrupt is masked (MIE=0) and interrupt is
  * synchronously handled.
  */
-static void __attribute__((used,naked))
+static struct chx_thread * __attribute__((used))
 chx_idle (void)
 {
   extern void chx_prepare_sleep_mode (void);
@@ -491,11 +491,7 @@ chx_idle (void)
 	}
     }
 
-  asm volatile (
-	"j	.L_IV_CONTEXT_SWITCH_BEGIN"
-	: : "r" (tp_next));
-
-  /* NOTE: it never comes here.  Don't add lines after this.  */
+  return tp_next;
 }
 
 
@@ -509,9 +505,8 @@ voluntary_context_switch (struct chx_thread *tp_next)
 	 * switched.  We get the thread context pointer adding the
 	 * offset.
 	*/
-	"# Save registers\n\t"
 	"sw	sp,8(tp)\n\t"
-	"mv	sp,tp\n\t"      /* Using SP, we can use C.SWSP instruction */
+	"mv	sp,tp\n\t"        /* Using SP, we can use C.SWSP instruction */
 	"sw	zero,0(sp)\n\t"
 	SAVE_CALLEE_SAVE_REGISTERS
 	"# Check if going to IDLE thread\n\t"
@@ -520,7 +515,8 @@ voluntary_context_switch (struct chx_thread *tp_next)
 	"mv	tp,zero\n\t"
 	"csrw	mscratch,tp\n\t"
 	"la	sp,__main_stack_end__\n\t"
-	"j	chx_idle\n"
+	"call	chx_idle\n"
+    ".L_V_CONTEXT_SWITCH_BEGIN:\n"
     "0:\n\t"
 	"addi	%0,%0,20\n\t"
 	"mv	sp,%0\n\t"
@@ -529,8 +525,7 @@ voluntary_context_switch (struct chx_thread *tp_next)
 	"csrw	mscratch,sp\n\t"
 	"lw	a0,0(sp)\n\t"
 	"beqz	a0,1f\n"
-    ".L_RETURN_TO_APPLICATION_THREAD:\n\t"
-	"# Restore all registers\n\t"
+    ".L_RETURN_TO_PREEMPTED_THREAD:\n\t"
 	"csrw	mepc,a0\n\t"
 	SETUP_MSTATUS_FROM_MACHINE_STATUS
 	RESTORE_OTHER_REGISTERS
@@ -652,6 +647,15 @@ chx_handle_intr (void)
 	"sw	sp,8(tp)\n\t"
 	"la	sp,__main_stack_end__");
 
+  /*
+   * The stack at __main_stack_end__ is shared data between chx_idle
+   * and this handler.  When it comes here, there is no active chx_idle,
+   * so, it is safe to use the stack.
+   *
+   * Note that when there are multiple cores, we need this stack for
+   * each core.
+   */
+
   asm (	"csrr	%0,mcause\n\t"
 	"slli	%0,%0,20\n\t"
 	"srli	%0,%0,20"       /* Take lower 12-bit of MCAUSE */
@@ -671,7 +675,7 @@ chx_handle_intr (void)
     asm volatile (
 	"mv	sp,tp\n\t"      /* Using SP, we can use C.SWSP instruction */
 	RESTORE_OTHER_REGISTERS
-	"lw	tp,16(sp)\n\t" /* Application is free to other use of TP */
+	"lw	tp,16(sp)\n\t"  /* Application is free to other use of TP */
 	"lw	sp,8(sp)\n\t"
 	"mret");
 
@@ -689,14 +693,14 @@ chx_handle_intr (void)
 	"slli	a1,a1,19\n\t"     /* Clear bit31 to bit13 */
 	"srli	a1,a1,19\n\t"     /* MPP..MPIE from MSTATUS  */
 	"sw	a1,128(sp)\n"
-    ".L_IV_CONTEXT_SWITCH_BEGIN:"
+    ".L_IV_CONTEXT_SWITCH_BEGIN:\n\t"
 	"addi	%0,%0,20\n\t"
 	"mv	sp,%0\n\t"
 	RESTORE_CALLEE_SAVE_REGISTERS
 	/**/
 	"csrw	mscratch,sp\n\t"
 	"lw	a0,0(sp)\n\t"
-	"bnez	a0,.L_RETURN_TO_APPLICATION_THREAD\n\t"
+	"bnez	a0,.L_RETURN_TO_PREEMPTED_THREAD\n\t"
 	/**/
 	"lw	a0,-4(sp)\n\t"    /* Get the result value */
 	"mv	tp,sp\n\t"
