@@ -398,7 +398,7 @@ chx_init_arch (struct chx_thread *tp)
 /*
  * MSTATUS register:
  *   31:    SD
- *   16-15: XS (Extra Unit? state)
+ *   16-15: XS (Extra Unit state)
  *   14-13: FS (Floating-point Unit state)
  *   12-11: MPP  (Previous Privilege)
  *   7:     MPIE (Previous Interrupt Enable flag)
@@ -410,16 +410,14 @@ chx_init_arch (struct chx_thread *tp)
  *   7-6 TYP  (Currunt Type-of-execution)
  *   0: Normal, 1: Interrupt, 2: Excep, 3: NMI
  *
- * No need to store PTYP it in MACHINE_STATUS.
- * No need to setup MSUBM PTYP, as it's always 0 when this is called.
+ * No need to store PTYP field of MSUBM in MACHINE_STATUS.
+ * No need to setup MSUBM for PTYP.
+ * Since it's always 0 when this is called.
  *
  * Save MPP..MPIE in MACHINE_STATUS in the thread context.
  */
 #define SETUP_MSTATUS_FROM_MACHINE_STATUS                                 \
-	"lw	a0,128(sp)\n\t"   /* MACHINE_STATUS */                    \
-	"li	a1,0x1f8\n\t"                                             \
-	"slli	a1,a1,4\n\t"                                              \
-	"and	a0,a0,a1\n\t"     /* MPP..MPIE from MACHINE_STATUS  */    \
+	"lw	a0,128(sp)\n\t"   /* MPP..MPIE is in MACHINE_STATUS  */   \
 	"csrr	a1,mstatus\n\t"                                           \
 	"srli	a1,a1,13\n\t"                                             \
 	"slli	a1,a1,13\n\t"     /* SD, XS, and FS bits from MSTATUS */  \
