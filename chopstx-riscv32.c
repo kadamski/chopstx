@@ -505,6 +505,7 @@ voluntary_context_switch (struct chx_thread *tp_next)
 	 * switched.  We get the thread context pointer adding the
 	 * offset.
 	*/
+	"# Voluntary context switch\n\t"
 	"sw	sp,8(tp)\n\t"
 	"mv	sp,tp\n\t"        /* Using SP, we can use C.SWSP instruction */
 	"sw	zero,0(sp)\n\t"
