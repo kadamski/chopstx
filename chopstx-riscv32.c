@@ -32,11 +32,9 @@
  * Define Bumblebee specific CSRs
  */
 asm (
-	".equ	msubm,0x7c4\n\t"
+	".equ	msubm,0x7c4\n\t" /* No use (not needed to care about) */
 	".equ	mtvt,0x307\n\t"
 	".equ	mtvt2,0x7ec\n\t"
-	".equ	wfe,0x810\n\t"    /* Not used (yet). */
-	".equ	sleepvalue,0x811" /* Not used (yet). */
 );
 
 /* Data Memory Barrier.  */
@@ -328,73 +326,105 @@ chx_init_arch (struct chx_thread *tp)
   chx_set_running (tp);
 }
 
-#define SAVE_CALLEE_SAVE_REGISTERS \
-	"sw	s0,32(sp)\n\t"     \
-	"sw	s1,36(sp)\n\t"     \
-	"sw	s2,72(sp)\n\t"     \
-	"sw	s3,76(sp)\n\t"     \
-	"sw	s4,80(sp)\n\t"     \
-	"sw	s5,84(sp)\n\t"     \
-	"sw	s6,88(sp)\n\t"     \
-	"sw	s7,92(sp)\n\t"     \
-	"sw	s8,96(sp)\n\t"     \
-	"sw	s9,100(sp)\n\t"    \
-	"sw	s10,104(sp)\n\t"   \
+#define SAVE_CALLEE_SAVE_REGISTERS            \
+	"# Save callee save registers\n\t"    \
+	"sw	s0,32(sp)\n\t"                \
+	"sw	s1,36(sp)\n\t"                \
+	"sw	s2,72(sp)\n\t"                \
+	"sw	s3,76(sp)\n\t"                \
+	"sw	s4,80(sp)\n\t"                \
+	"sw	s5,84(sp)\n\t"                \
+	"sw	s6,88(sp)\n\t"                \
+	"sw	s7,92(sp)\n\t"                \
+	"sw	s8,96(sp)\n\t"                \
+	"sw	s9,100(sp)\n\t"               \
+	"sw	s10,104(sp)\n\t"              \
 	"sw	s11,108(sp)\n\t"
 
-#define RESTORE_CALLEE_SAVE_REGISTERS \
-	"lw	s0,32(sp)\n\t"        \
-	"lw	s1,36(sp)\n\t"        \
-	"lw	s2,72(sp)\n\t"        \
-	"lw	s3,76(sp)\n\t"        \
-	"lw	s4,80(sp)\n\t"        \
-	"lw	s5,84(sp)\n\t"        \
-	"lw	s6,88(sp)\n\t"        \
-	"lw	s7,92(sp)\n\t"        \
-	"lw	s8,96(sp)\n\t"        \
-	"lw	s9,100(sp)\n\t"       \
-	"lw	s10,104(sp)\n\t"      \
+#define RESTORE_CALLEE_SAVE_REGISTERS         \
+	"# Restore callee save registers\n\t" \
+	"lw	s0,32(sp)\n\t"                \
+	"lw	s1,36(sp)\n\t"                \
+	"lw	s2,72(sp)\n\t"                \
+	"lw	s3,76(sp)\n\t"                \
+	"lw	s4,80(sp)\n\t"                \
+	"lw	s5,84(sp)\n\t"                \
+	"lw	s6,88(sp)\n\t"                \
+	"lw	s7,92(sp)\n\t"                \
+	"lw	s8,96(sp)\n\t"                \
+	"lw	s9,100(sp)\n\t"               \
+	"lw	s10,104(sp)\n\t"              \
 	"lw	s11,108(sp)\n\t"
 
-#define SAVE_OTHER_REGISTERS_PLUS_A0A1 \
-	"sw	ra,4(sp)\n\t"          \
-	"sw	gp,12(sp)\n\t"         \
-	"sw	t0,20(sp)\n\t"         \
-	"sw	t1,24(sp)\n\t"         \
-	"sw	t2,28(sp)\n\t"         \
-	"sw	a0,40(sp)\n\t"         \
-	"sw	a1,44(sp)\n\t"         \
-	"sw	a2,48(sp)\n\t"         \
-	"sw	a3,52(sp)\n\t"         \
-	"sw	a4,56(sp)\n\t"         \
-	"sw	a5,60(sp)\n\t"         \
-	"sw	a6,64(sp)\n\t"         \
-	"sw	a7,68(sp)\n\t"         \
-	"sw	t3,112(sp)\n\t"        \
-	"sw	t4,116(sp)\n\t"        \
-	"sw	t5,120(sp)\n\t"        \
+#define SAVE_OTHER_REGISTERS            \
+	"# Save other registers\n\t"    \
+	"sw	ra,4(sp)\n\t"           \
+	"sw	gp,12(sp)\n\t"          \
+	"sw	t0,20(sp)\n\t"          \
+	"sw	t1,24(sp)\n\t"          \
+	"sw	t2,28(sp)\n\t"          \
+	"sw	a0,40(sp)\n\t"          \
+	"sw	a1,44(sp)\n\t"          \
+	"sw	a2,48(sp)\n\t"          \
+	"sw	a3,52(sp)\n\t"          \
+	"sw	a4,56(sp)\n\t"          \
+	"sw	a5,60(sp)\n\t"          \
+	"sw	a6,64(sp)\n\t"          \
+	"sw	a7,68(sp)\n\t"          \
+	"sw	t3,112(sp)\n\t"         \
+	"sw	t4,116(sp)\n\t"         \
+	"sw	t5,120(sp)\n\t"         \
 	"sw	t6,124(sp)\n\t"
 
-#define RESTORE_OTHER_REGISTERS_SANS_A0A1 \
-	"lw	ra,4(sp)\n\t"             \
-	"lw	gp,12(sp)\n\t"            \
-	"lw	t0,20(sp)\n\t"            \
-	"lw	t1,24(sp)\n\t"            \
-	"lw	t2,28(sp)\n\t"            \
-	"lw	a2,48(sp)\n\t"            \
-	"lw	a3,52(sp)\n\t"            \
-	"lw	a4,56(sp)\n\t"            \
-	"lw	a5,60(sp)\n\t"            \
-	"lw	a6,64(sp)\n\t"            \
-	"lw	a7,68(sp)\n\t"            \
-	"lw	t3,112(sp)\n\t"           \
-	"lw	t4,116(sp)\n\t"           \
-	"lw	t5,120(sp)\n\t"           \
+#define RESTORE_OTHER_REGISTERS         \
+	"# Restore other registers\n\t" \
+	"lw	ra,4(sp)\n\t"           \
+	"lw	gp,12(sp)\n\t"          \
+	"lw	t0,20(sp)\n\t"          \
+	"lw	t1,24(sp)\n\t"          \
+	"lw	t2,28(sp)\n\t"          \
+	"lw	a0,40(sp)\n\t"          \
+	"lw	a1,44(sp)\n\t"          \
+	"lw	a2,48(sp)\n\t"          \
+	"lw	a3,52(sp)\n\t"          \
+	"lw	a4,56(sp)\n\t"          \
+	"lw	a5,60(sp)\n\t"          \
+	"lw	a6,64(sp)\n\t"          \
+	"lw	a7,68(sp)\n\t"          \
+	"lw	t3,112(sp)\n\t"         \
+	"lw	t4,116(sp)\n\t"         \
+	"lw	t5,120(sp)\n\t"         \
 	"lw	t6,124(sp)\n\t"
-
-#define RESTORE_A0A1_REGISTERS      \
-	"lw	a0,40(sp)\n\t"      \
-	"lw	a1,44(sp)\n\t"
+/*
+ * MSTATUS register:
+ *   31:    SD
+ *   16-15: XS (Extra Unit? state)
+ *   14-13: FS (Floating-point Unit state)
+ *   12-11: MPP  (Previous Privilege)
+ *   7:     MPIE (Previous Interrupt Enable flag)
+ *   3:     MIE  (Interrupt Enable flag)
+ */
+/*
+ * MSUBM register:
+ *   9-8 PTYP (Previous Type-of-execution)
+ *   7-6 TYP  (Currunt Type-of-execution)
+ *   0: Normal, 1: Interrupt, 2: Excep, 3: NMI
+ *
+ * No need to store PTYP it in MACHINE_STATUS.
+ * No need to setup MSUBM PTYP, as it's always 0 when this is called.
+ *
+ * Save MPP..MPIE in MACHINE_STATUS in the thread context.
+ */
+#define SETUP_MSTATUS_FROM_MACHINE_STATUS                                 \
+	"lw	a0,128(sp)\n\t"   /* MACHINE_STATUS */                    \
+	"li	a1,0x1f8\n\t"                                             \
+	"slli	a1,a1,4\n\t"                                              \
+	"and	a0,a0,a1\n\t"     /* MPP..MPIE from MACHINE_STATUS  */    \
+	"csrr	a1,mstatus\n\t"                                           \
+	"srli	a1,a1,13\n\t"                                             \
+	"slli	a1,a1,13\n\t"     /* SD, XS, and FS bits from MSTATUS */  \
+	"or	a0,a0,a1\n\t"                                             \
+	"csrw	mstatus,a0\n\t"   /* Note: keep MIE=0 */
 
 /* It is good if ISA has a single instruction for this operation.  */
 #define CATCH_AN_INTERRUPT_SYNCHRONOUSLY                                     \
@@ -496,53 +526,21 @@ voluntary_context_switch (struct chx_thread *tp_next)
     "0:\n\t"
 	"addi	%0,%0,20\n\t"
 	"mv	sp,%0\n\t"
-	"# Restore registers\n\t"
 	RESTORE_CALLEE_SAVE_REGISTERS
-	"lw	a0,-4(sp)\n\t"  /* Get the result value */
 	/**/
 	"csrw	mscratch,sp\n\t"
-	"lw	a1,0(sp)\n\t"
-	"beqz	a1,1f\n\t"
+	"lw	a0,0(sp)\n\t"
+	"beqz	a0,1f\n"
+    ".L_RETURN_TO_APPLICATION_THREAD:\n\t"
 	"# Restore all registers\n\t"
-	"csrw	mepc,a1\n\t"
-	RESTORE_OTHER_REGISTERS_SANS_A0A1
-	/*
-	 * MSTATUS register:
-	 *   31:    SD
-	 *   16-15: XS (Extra Unit? state)
-	 *   14-13: FS (Floating-point Unit state)
-	 *   12-11: MPP  (Previous Privilege)
-	 *   7:     MPIE (Previous Interrupt Enable flag)
-	 *   3:     MIE  (Interrupt Enable flag)
-	 */
-	/*
-	 * MSUBM register:
-	 *   9-8 PTYP (Previous Type-of-execution)
-	 *   7-6 TYP  (Currunt Type-of-execution)
-	 *   0: Normal, 1: Interrupt, 2: Excep, 3: NMI
-	 *
-	 * Save MPP..MPIE, and PTYP in MACHINE_STATUS in the thread context.
-	 * (PTYP in bits of 1-0)
-	 */
-	"lw	a0,128(sp)\n\t"   /* MACHINE_STATUS */
-	"li	a1,0x03\n\t"
-	"and	a1,a0,a1\n\t"
-	"slli	a1,a1,8\n\t"
-	"csrw	msubm,a1\n\t"     /* PTYP from MACHINE_STATUS, TYP=0 */
-	"li	a1,0x1f8\n\t"
-	"slli	a1,a1,4\n\t"
-	"and	a0,a0,a1\n\t"     /* MPP..MPIE from MACHINE_STATUS  */
-	"csrr	a1,mstatus\n\t"
-	"srli	a1,a1,13\n\t"
-	"slli	a1,a1,13\n\t"     /* SD, XS, and FS bits from MSTATUS */
-	"or	a0,a0,a1\n\t"
-	"csrw	mstatus,a0\n\t"   /* Note: keep MIE=0 */
-	/**/
-	RESTORE_A0A1_REGISTERS
+	"csrw	mepc,a0\n\t"
+	SETUP_MSTATUS_FROM_MACHINE_STATUS
+	RESTORE_OTHER_REGISTERS
 	"lw	tp,16(sp)\n\t"    /* Application is free to other use of TP */
 	"lw	sp,8(sp)\n\t"
 	"mret\n"
     "1:\n\t"
+	"lw	a0,-4(sp)\n\t"  /* Get the result value */
 	"mv	tp,sp\n\t"
 	"lw	sp,8(sp)\n\t"
 	"csrsi	mstatus,8\n"  /* Unmask interrupts.  */
@@ -647,7 +645,7 @@ chx_handle_intr (void)
 	"mret\n"
     "0:\n\t"
 	"sw	tp,16(sp)\n\t"      /* Application is free to other use of TP */
-	SAVE_OTHER_REGISTERS_PLUS_A0A1
+	SAVE_OTHER_REGISTERS
 	"csrr	a0,mepc\n\t"
 	"sw	a0,0(sp)\n\t"
 	/**/
@@ -674,9 +672,7 @@ chx_handle_intr (void)
   if (!tp_next)
     asm volatile (
 	"mv	sp,tp\n\t"      /* Using SP, we can use C.SWSP instruction */
-	"# Restore registers\n\t"
-	RESTORE_OTHER_REGISTERS_SANS_A0A1
-	RESTORE_A0A1_REGISTERS
+	RESTORE_OTHER_REGISTERS
 	"lw	tp,16(sp)\n\t" /* Application is free to other use of TP */
 	"lw	sp,8(sp)\n\t"
 	"mret");
@@ -686,32 +682,25 @@ chx_handle_intr (void)
   asm volatile (
 	"# Involuntary context switch\n\t"
 	"mv	sp,tp\n\t"      /* Using SP, we can use C.SWSP instruction */
-	"# Save registers\n\t"
 	SAVE_CALLEE_SAVE_REGISTERS
 	/*
 	 * MACHINE_STATUS = (MSTATUS & 0x00001f80)
-	 *                | (MSUBM >> 8)
 	 */
 	"csrr	a1,mstatus\n\t"
 	"andi	a1,a1,-9\n\t"     /* Clear MIE (bit3) */
 	"slli	a1,a1,19\n\t"     /* Clear bit31 to bit13 */
 	"srli	a1,a1,19\n\t"     /* MPP..MPIE from MSTATUS  */
-	"csrr	a2,msubm\n\t"     /* PTYP (2-bit) from MSUBM */
-	"slli	a2,a2,8\n\t"
-	"or	a1,a1,a2\n\t"
 	"sw	a1,128(sp)\n"
     ".L_IV_CONTEXT_SWITCH_BEGIN:"
 	"addi	%0,%0,20\n\t"
 	"mv	sp,%0\n\t"
-	"# Restore registers\n\t"
 	RESTORE_CALLEE_SAVE_REGISTERS
 	/**/
 	"csrw	mscratch,sp\n\t"
 	"lw	a0,0(sp)\n\t"
-	"bnez	a0,0f\n\t"
+	"bnez	a0,.L_RETURN_TO_APPLICATION_THREAD\n\t"
 	/**/
 	"lw	a0,-4(sp)\n\t"    /* Get the result value */
-	/**/
 	"mv	tp,sp\n\t"
 	"lw	sp,8(sp)\n\t"
 	"la	a1,.L_V_CONTEXT_SWITCH_FINISH\n\t"
@@ -719,31 +708,6 @@ chx_handle_intr (void)
 	"li	a1,0x188\n\t"     /* Set MPIE and MPP bits */
 	"slli	a1,a1,4\n\t"
 	"csrrs	x0,mstatus,a1\n\t"/* Prev: Machine mode, enable interrupt */
-	"li	a1,0x0300\n\t"    /* Clear PTYP bits */
-	"csrrc	x0,msubm,a1\n\t"  /* Prev: No-trap */
-	"mret\n"                  /* Return to Prev  */
-    "0:\n\t"
-	"# Restore all registers\n\t"
-	"csrw	mepc,a0\n\t"
-	RESTORE_OTHER_REGISTERS_SANS_A0A1
-	"lw	a0,128(sp)\n\t"	  /* MACHINE_STATUS */
-	"li	a1,0x03\n\t"
-	"and	a1,a0,a1\n\t"
-	"slli	a1,a1,8\n\t"
-	"ori	a1,a1,0x40\n\t"
-	"csrw	msubm,a1\n\t"     /* PTYP from MACHINE_STATUS, TYP=1 */
-	"li	a1,0x1f8\n\t"
-	"slli	a1,a1,4\n\t"
-	"and	a0,a0,a1\n\t"     /* MPP..MPIE from MACHINE_STATUS  */
-	"csrr	a1,mstatus\n\t"
-	"srli	a1,a1,13\n\t"
-	"slli	a1,a1,13\n\t"     /* SD, XS, and FS bits from MSTATUS */
-	"or	a0,a0,a1\n\t"
-	"csrw	mstatus,a0\n\t"   /* Note: keep MIE=0 */
-	/**/
-	RESTORE_A0A1_REGISTERS
-	"lw	tp,16(sp)\n\t" /* Application is free to other use of TP */
-	"lw	sp,8(sp)\n\t"
-	"mret"
+	"mret"                    /* Return to Prev  */
 	: /* no output */ : "r" (tp_next) : "memory");
 }
