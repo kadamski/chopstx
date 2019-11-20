@@ -25,18 +25,8 @@ chx_sleep_mode (int how)
     }
 }
 
-void __attribute__((naked))
-chx_idle (void)
+int
+chx_prepare_sleep_mode (void)
 {
-  int sleep_enabled;
-
-  for (;;)
-    {
-      asm ("ldr	%0, %1" : "=r" (sleep_enabled): "m" (chx_allow_sleep));
-      if (sleep_enabled)
-	{
-	  asm volatile ("wfi" : : : "memory");
-	  /* NOTE: it never comes here.  Don't add lines after this.  */
-	}
-    }
+  return chx_allow_sleep;
 }

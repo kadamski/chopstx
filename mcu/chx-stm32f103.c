@@ -62,31 +62,19 @@ chx_sleep_mode (int how)
   /* how == 2: Defer setting to 8MHz clock to the idle function */
 }
 
-void __attribute__((naked))
-chx_idle (void)
+int
+chx_prepare_sleep_mode (void)
 {
-  int sleep_enabled;
-
-  for (;;)
+  if (chx_allow_sleep == 1)
     {
-      asm ("ldr	%0, %1" : "=r" (sleep_enabled): "m" (chx_allow_sleep));
-      if (sleep_enabled)
-	{
-	  asm volatile ("cpsid	i" : : : "memory");
-	  if (sleep_enabled == 1)
-	    {
-	      /* Allow JTAG/SWD access on sleep.  */
-	      DBGMCU->CR |= DBG_SLEEP;
-	    }
-	  else if (sleep_enabled == 2)
-	    {
-	      DBGMCU->CR &= ~DBG_SLEEP; /* Disable HCLK on sleep */
-	      configure_clock (0);
-	    }
-	  asm volatile ("cpsie	i" : : : "memory");
-
-	  asm volatile ("wfi" : : : "memory");
-	  /* NOTE: it never comes here.  Don't add lines after this.  */
-	}
+      /* Allow JTAG/SWD access on sleep.  */
+      DBGMCU->CR |= DBG_SLEEP;
     }
+  else if (chx_allow_sleep == 2)
+    {
+      DBGMCU->CR &= ~DBG_SLEEP; /* Disable HCLK on sleep */
+      configure_clock (0);
+    }
+
+  return chx_allow_sleep != 0;
 }
