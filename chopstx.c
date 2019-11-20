@@ -445,7 +445,14 @@ chx_timer_expired (void)
   chx_spin_unlock (&q_timer.lock);
 
   if (running == NULL || (uint16_t)running->prio < prio)
-    return chx_ready_pop ();
+    {
+      tp = chx_ready_pop ();
+      if (tp != running)
+	return tp;
+      else
+	/* When tp->flag_sched_rr == 1, it's possible.	No context switch.  */
+	return NULL;
+    }
   else
     return NULL;
 }
@@ -497,7 +504,7 @@ chx_running_preempted (struct chx_thread *tp_next)
 	}
       /*
        * It may be THREAD_READY after chx_timer_expired.
-       * Then, do nothing.
+       * Then, do nothing.  It's in the ready queue.
        */
     }
   else
