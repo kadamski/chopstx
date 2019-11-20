@@ -32,6 +32,14 @@
 #include <signal.h>
 #include <sys/time.h>
 
+static struct chx_thread *running;
+
+static struct chx_thread *
+chx_running (void)
+{
+  return running;
+}
+
 /* Data Memory Barrier.  */
 static void
 chx_dmb (void)
@@ -40,14 +48,6 @@ chx_dmb (void)
 
 
 static void chx_preempt_into (struct chx_thread *tp_next);
-
-static struct chx_thread *running;
-
-static struct chx_thread *
-chx_running (void)
-{
-  return running;
-}
 
 static sigset_t ss_cur;
 
@@ -239,6 +239,8 @@ chx_init_arch (struct chx_thread *tp)
   chx_cpu_sched_unlock ();
 
   getcontext (&tp->tc);
+
+  running = tp;
 }
 
 static void
