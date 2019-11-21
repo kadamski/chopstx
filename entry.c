@@ -64,7 +64,7 @@ extern uint8_t __main_stack_end__;
 #if defined(__ARM_ARCH_7M__) || defined(__ARM_ARCH_7EM__)
 extern void svc (void);
 #endif
-extern void chx_handle_timer (void);
+
 extern void chx_handle_intr (void);
 
 static void nmi (void)

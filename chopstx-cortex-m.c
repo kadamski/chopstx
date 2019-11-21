@@ -36,6 +36,12 @@ chx_running (void)
   return running;
 }
 
+static void
+chx_set_running (struct chx_thread *r)
+{
+  running = r;
+}
+
 
 /* Data Memory Barrier.  */
 static void
@@ -89,18 +95,18 @@ struct chx_stack_regs {
 #if defined(__ARM_ARCH_6M__)
 #define CPU_EXCEPTION_PRIORITY_INHIBIT_SCHED 0x00
 /* ... */
-#define CPU_EXCEPTION_PRIORITY_SYSTICK       CPU_EXCEPTION_PRIORITY_INTERRUPT
-#define CPU_EXCEPTION_PRIORITY_INTERRUPT     0x40
-#define CPU_EXCEPTION_PRIORITY_PENDSV        0x80
+#define CPU_EXCEPTION_PRIORITY_SYSTICK       0x40
+#define CPU_EXCEPTION_PRIORITY_INTERRUPT     CPU_EXCEPTION_PRIORITY_SYSTICK
+#define CPU_EXCEPTION_PRIORITY_PENDSV        CPU_EXCEPTION_PRIORITY_SYSTICK
 #define CPU_EXCEPTION_PRIORITY_SVC           0x80 /* No use in this arch */
 #elif defined(__ARM_ARCH_7M__) || defined(__ARM_ARCH_7EM__)
 #define CPU_EXCEPTION_PRIORITY_SVC           0x30
 
 #define CPU_EXCEPTION_PRIORITY_INHIBIT_SCHED 0x40
 /* ... */
-#define CPU_EXCEPTION_PRIORITY_SYSTICK       CPU_EXCEPTION_PRIORITY_INTERRUPT
-#define CPU_EXCEPTION_PRIORITY_INTERRUPT     0xb0
-#define CPU_EXCEPTION_PRIORITY_PENDSV        0xc0
+#define CPU_EXCEPTION_PRIORITY_SYSTICK       0xb0
+#define CPU_EXCEPTION_PRIORITY_INTERRUPT     CPU_EXCEPTION_PRIORITY_SYSTICK
+#define CPU_EXCEPTION_PRIORITY_PENDSV        CPU_EXCEPTION_PRIORITY_SYSTICK
 #else
 #error "no support for this arch"
 #endif
@@ -232,29 +238,23 @@ chx_interrupt_controller_init (void)
 static void
 chx_cpu_sched_lock (void)
 {
-  if (running->prio < CHOPSTX_PRIO_INHIBIT_PREEMPTION)
-    {
 #if defined(__ARM_ARCH_6M__)
-      asm volatile ("cpsid	i" : : : "memory");
+  asm volatile ("cpsid	i" : : : "memory");
 #else
-      register uint32_t tmp = CPU_EXCEPTION_PRIORITY_INHIBIT_SCHED;
-      asm volatile ("msr	BASEPRI, %0" : : "r" (tmp) : "memory");
+  register uint32_t tmp = CPU_EXCEPTION_PRIORITY_INHIBIT_SCHED;
+  asm volatile ("msr	BASEPRI, %0" : : "r" (tmp) : "memory");
 #endif
-    }
 }
 
 static void
 chx_cpu_sched_unlock (void)
 {
-  if (running->prio < CHOPSTX_PRIO_INHIBIT_PREEMPTION)
-    {
 #if defined(__ARM_ARCH_6M__)
-      asm volatile ("cpsie	i" : : : "memory");
+  asm volatile ("cpsie	i" : : : "memory");
 #else
-      register uint32_t tmp = CPU_EXCEPTION_PRIORITY_CLEAR;
-      asm volatile ("msr	BASEPRI, %0" : : "r" (tmp) : "memory");
+  register uint32_t tmp = CPU_EXCEPTION_PRIORITY_CLEAR;
+  asm volatile ("msr	BASEPRI, %0" : : "r" (tmp) : "memory");
 #endif
-    }
 }
 
 
@@ -262,7 +262,7 @@ static void
 chx_init_arch (struct chx_thread *tp)
 {
   memset (&tp->tc, 0, sizeof (tp->tc));
-  running = tp;
+  chx_set_running (tp);
 }
 
 
@@ -379,15 +379,9 @@ chx_sched (uint32_t yield)
 		"ldm	r0!, {r1, r2}\n\t"
 		"mov	r11, r1\n\t"
 		"mov	sp, r2\n\t"
-		"sub	r0, #45\n\t"
-		"ldrb	r1, [r0]\n\t" /* ->PRIO field.  */
-		"cmp	r1, #247\n\t"
-		"bhi	1f\n\t"	/* Leave interrupt disabled if >= 248 */
 		/**/
 		/* Unmask interrupts.  */
-		"cpsie	i\n"
-		/**/
-	"1:\n\t"
+		"cpsie	i\n\t"
 		/*
 		  0:  r0
 		  4:  r1
@@ -657,7 +651,7 @@ chx_handle_intr (void)
 	: :
 	  /*
 	   * Memory clobber constraint here is not accurate, but this
-	   * works.
+	   * works????
 	   */
 	: "r0", "r1", "r2", "r3", "memory");
 
@@ -688,20 +682,13 @@ chx_handle_intr (void)
 	"ldr	r1, [r0], #4\n\t"
 	"msr	PSP, r1\n\t"
 #endif
-	"sub	r0, #45\n\t"
-	"ldrb	r1, [r0]\n\t" /* ->PRIO field.  */
-	"mov	r0, #0\n\t"
-	"cmp	r1, #247\n\t"
-	"bhi	0f\n\t"	/* Leave interrupt disabled if >= 248 */
-	/**/
 	/* Unmask interrupts.  */
 #if defined(__ARM_ARCH_6M__)
-	"cpsie	i\n"
+	"cpsie	i\n\t"
 #else
-	"msr	BASEPRI, r0\n"
+	"msr	BASEPRI, r0\n\t"
 #endif
 	/**/
-    "0:\n\t"
 	"sub	r0, #3\n\t" /* EXC_RETURN to a thread with PSP */
 	"bx	r0\n"
 	: /* no output */ : "r" (tp_next) : "memory");
