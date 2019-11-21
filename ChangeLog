@@ -1,5 +1,13 @@
 2019-11-21  NIIBE Yutaka  <gniibe@fsij.org>
 
+	* chopstx.c (chx_sched): New common function.
+
+	* chopstx-cortex-m.c (svc): Simply context switch.
+	(voluntary_context_switch): New, replacing chx_sched.
+	* chopstx-gnu-linux.c (voluntary_context_switch): Likewise.
+
+2019-11-21  NIIBE Yutaka  <gniibe@fsij.org>
+
 	* chopstx.h (CHOPSTX_PRIO_INHIBIT_PREEMPTION): Remove.
 	* chopstx.c (chx_init): Remove support of
 	CHOPSTX_PRIO_INHIBIT_PREEMPTION.

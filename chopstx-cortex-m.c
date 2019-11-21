@@ -297,36 +297,19 @@ chx_init_arch (struct chx_thread *tp)
 }
 
 
-/*
- * chx_sched: switch to another thread.
- *
- * There are two cases:
- *   YIELD=0 (SLEEP): Current RUNNING thread is already connected to
- *                    something (mutex, cond, intr, etc.)
- *   YIELD=1 (YIELD): Current RUNNING thread is active,
- *                    it is needed to be enqueued to READY queue.
- *
- * For Cortex-M0, this should be AAPCS-compliant function entry, so we
- * put "noinline" attribute.
- *
- * 	AAPCS: ARM Architecture Procedure Call Standard
- *
- * Returns:
- *       >= 1 on wakeup by others, value means ticks remained for sleep.
- *          0 on normal wakeup (timer expiration, lock acquirement).
- *         -1 on cancellation.
- */
-static uintptr_t __attribute__ ((naked, noinline))
-chx_sched (uint32_t yield)
+static uintptr_t
+voluntary_context_switch (struct chx_thread *tp_next)
 {
-  register struct chx_thread *tp asm ("r0");
+  register uintptr_t result asm ("r0");
 
 #if defined(__ARM_ARCH_7M__) || defined(__ARM_ARCH_7EM__)
   asm volatile (
-	"svc	#0"
-	: "=r" (tp) : "0" (yield): "memory");
+	"svc	#0\n\t"
+        "add	r1, r0, #16\n\t"
+        "ldr	r0, [r1]"       /* Get tp->v */
+	: "=r" (result) : "0" (tp_next): "memory");
 #else
-  register uint32_t arg_yield asm ("r1");
+  register struct chx_thread *tp asm ("r1");
 
   /* Build stack data as if it were an exception entry.  */
   /*
@@ -339,45 +322,35 @@ chx_sched (uint32_t yield)
    * pc:  return address (= .L_CONTEXT_SWITCH_FINISH)
    * psr: INITIAL_XPSR          scratch
    */
-  asm ("mov	r1, lr\n\t"
+  asm ("mov	%0, lr\n\t"
        "ldr	r2, =.L_CONTEXT_SWITCH_FINISH\n\t"
        "mov	r3, #128\n\t"
        "lsl	r3, #17\n\t"
-       "push	{r1, r2, r3}\n\t"
-       "mov	r1, #0\n\t"
-       "mov	r2, r1\n\t"
-       "mov	r3, r1\n\t"
-       "push	{r1, r2, r3}\n\t"
-       "mov	r1, r0\n\t"
+       "push	{%0, r2, r3}\n\t"
+       "mov	%0, #0\n\t"
+       "mov	r2, %0\n\t"
+       "mov	r3, %0\n\t"
+       "push	{%0, r2, r3}\n\t"
        "ldr	r2, =running\n\t"
-       "ldr	r0, [r2]\n\t"
-       "push	{r0, r3}"
-       :  "=r" (tp), "=r" (arg_yield)
-       : "0" (yield)
+       "ldr	%0, [r2]"
+       "push	{%0, r3}\n\t"
+       : "=r" (tp)
+       : /* no input */
        : "r2", "r3", "memory");
 
   /* Save registers onto CHX_THREAD struct.  */
-  asm ("add	r0, #20\n\t"
-       "stm	r0!, {r4, r5, r6, r7}\n\t"
+  asm ("add	r1, #20\n\t"
+       "stm	r1!, {r4, r5, r6, r7}\n\t"
        "mov	r2, r8\n\t"
        "mov	r3, r9\n\t"
        "mov	r4, r10\n\t"
        "mov	r5, r11\n\t"
        "mov	r6, sp\n\t"
-       "stm	r0!, {r2, r3, r4, r5, r6}\n\t"
-       "sub	r0, #56"
+       "stm	r1!, {r2, r3, r4, r5, r6}\n\t"
+       "sub	r1, #56"
        : /* no output */
        : "r" (tp)
        : "r2", "r3", "r4", "r5", "r6", "r7", "memory");
-
-  if (arg_yield)
-    {
-      if (tp->flag_sched_rr)
-	chx_timer_dequeue (tp);
-      chx_ready_enqueue (tp);
-    }
-
-  tp = chx_ready_pop ();
 
   asm volatile (/* Now, r0 points to the thread to be switched.  */
 		/* Put it to *running.  */
@@ -453,17 +426,14 @@ chx_sched (uint32_t yield)
 		"pop	{r0, r1, r2, r3}\n\t"
 		"add	sp, #12\n\t"
 		"pop	{pc}\n\t"
-	".L_CONTEXT_SWITCH_FINISH:"
-		: "=r" (tp)		/* Return value in R0 */
-		: "0" (tp)
+	".L_CONTEXT_SWITCH_FINISH:\n\t"
+		"add	r1, r0, #16\n\t"
+		"ldr	r0, [r1]"       /* Get tp->v */
+		: "=r" (result)		/* Return value in R0 */
+		: "0" (tp_next)
 		: "memory");
 #endif
-
-  asm volatile ("bx	lr"
-		: "=r" (tp)
-		: "0" (tp->v)
-		: "memory");
-  return (uintptr_t)tp;
+  return (uintptr_t)result;
 }
 
 extern void cause_link_time_error_unexpected_size_of_struct_chx_thread (void);
@@ -615,21 +585,15 @@ preempt (struct chx_thread * tp_next)
 #if defined(__ARM_ARCH_7M__) || defined(__ARM_ARCH_7EM__)
 /*
  * System call: switch to another thread.
- * There are two cases:
- *   ORIG_R0=0 (SLEEP): Current RUNNING thread is already connected to
- *                      something (mutex, cond, intr, etc.)
- *   ORIG_R0=1 (YIELD): Current RUNNING thread is active,
- *                      it is needed to be enqueued to READY queue.
  */
 void __attribute__ ((naked))
 svc (void)
 {
-  register struct chx_thread *tp asm ("r0");
-  register uint32_t orig_r0 asm ("r1");
+  register uint32_t tp_next asm ("r0");
 
   asm ("ldr	r1, =running\n\t"
-       "ldr	r0, [r1]\n\t"
-       "add	r1, r0, #20\n\t"
+       "ldr	r1, [r1]\n\t"
+       "add	r1, #20\n\t"
        /* Save registers onto CHX_THREAD struct.  */
        "stm	r1!, {r4, r5, r6, r7}\n\t"
        "mov	r2, r8\n\t"
@@ -638,23 +602,15 @@ svc (void)
        "mov	r5, r11\n\t"
        "mrs	r6, PSP\n\t" /* r13(=SP) in user space.  */
        "stm	r1!, {r2, r3, r4, r5, r6}\n\t"
-       "ldr	r1, [r6]\n\t"
-       "str	r0, [r6]"
-       : "=r" (tp), "=r" (orig_r0)
+       "ldr	r0, [r6]\n\t"
+       "sub	r1, #56\n\t"
+       "str	r1, [r6]"
+       : "=r" (tp_next)
        : /* no input */
-       : "r2", "r3", "r4", "r5", "r6", "memory");
-
-  if (orig_r0)			/* yield */
-    {
-      if (tp->flag_sched_rr)
-	chx_timer_dequeue (tp);
-      chx_ready_enqueue (tp);
-    }
-
-  tp = chx_ready_pop ();
+       : "r1", "r2", "r3", "r4", "r5", "r6", "memory");
 
   asm volatile (
 	"b	.L_CONTEXT_SWITCH"
-	: /* no output */ : "r" (tp) : "memory");
+	: /* no output */ : "r" (tp_next) : "memory");
 }
 #endif
