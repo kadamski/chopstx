@@ -266,87 +266,57 @@ chx_init_arch (struct chx_thread *tp)
 }
 
 
-/*
- * chx_sched: switch to another thread.
- *
- * There are two cases:
- *   YIELD=0 (SLEEP): Current RUNNING thread is already connected to
- *                    something (mutex, cond, intr, etc.)
- *   YIELD=1 (YIELD): Current RUNNING thread is active,
- *                    it is needed to be enqueued to READY queue.
- *
- * For Cortex-M0, this should be AAPCS-compliant function entry, so we
- * put "noinline" attribute.
- *
- * 	AAPCS: ARM Architecture Procedure Call Standard
- *
- * Returns:
- *       >= 1 on wakeup by others, value means ticks remained for sleep.
- *          0 on normal wakeup (timer expiration, lock acquirement).
- *         -1 on cancellation.
- */
-static uintptr_t __attribute__ ((naked, noinline))
-chx_sched (uint32_t yield)
+static uintptr_t
+voluntary_context_switch (struct chx_thread *tp_next)
 {
-  register struct chx_thread *tp asm ("r0");
+  register uintptr_t result asm ("r0");
 
 #if defined(__ARM_ARCH_7M__) || defined(__ARM_ARCH_7EM__)
-  asm volatile (
-	"svc	#0"
-	: "=r" (tp) : "0" (yield): "memory");
-#else
-  register uint32_t arg_yield asm ("r1");
+  if (tp_next)
+    {
+      uint32_t *sp = (uint32_t *)tp_next->tc.reg[REG_SP];
+      if (sp[6] == 0)
+        asm volatile ("svc	#0\n\t"
+       : /* no output */
+       : "r" (tp_next)
+       : "memory");
+    }
+#endif
 
-  /* Build stack data as if it were an exception entry.  */
-  /*
+   /*
    * r0:  TP                    scratch
    * r1:  0                     scratch
    * r2:  0                     scratch
    * r3:  0                     scratch
    * r12: 0                     scratch
    * lr   as-is
-   * pc:  return address (= .L_CONTEXT_SWITCH_FINISH)
+   * pc:  return address	zero
    * psr: INITIAL_XPSR          scratch
    */
+  /* Build up an exception entry on stack.  */
+  /* Save callee-save registers onto CHX_THREAD struct.  */
   asm ("mov	r1, lr\n\t"
-       "ldr	r2, =.L_CONTEXT_SWITCH_FINISH\n\t"
+       "mov	r2, #0\n\t"
        "mov	r3, #128\n\t"
        "lsl	r3, #17\n\t"
        "push	{r1, r2, r3}\n\t"
        "mov	r1, #0\n\t"
-       "mov	r2, r1\n\t"
        "mov	r3, r1\n\t"
        "push	{r1, r2, r3}\n\t"
-       "mov	r1, r0\n\t"
-       "ldr	r2, =running\n\t"
-       "ldr	r0, [r2]\n\t"
-       "push	{r0, r3}"
-       :  "=r" (tp), "=r" (arg_yield)
-       : "0" (yield)
-       : "r2", "r3", "memory");
-
-  /* Save registers onto CHX_THREAD struct.  */
-  asm ("add	r0, #20\n\t"
+       "push	{r0, r1}"
+       /**/
+       "add	r0, #20\n\t"
        "stm	r0!, {r4, r5, r6, r7}\n\t"
-       "mov	r2, r8\n\t"
-       "mov	r3, r9\n\t"
-       "mov	r4, r10\n\t"
-       "mov	r5, r11\n\t"
-       "mov	r6, sp\n\t"
-       "stm	r0!, {r2, r3, r4, r5, r6}\n\t"
+       "mov	r1, r8\n\t"
+       "mov	r2, r9\n\t"
+       "mov	r3, r10\n\t"
+       "mov	r4, r11\n\t"
+       "mov	r5, sp\n\t"
+       "stm	r0!, {r1, r2, r3, r4, r5}\n\t"
        "sub	r0, #56"
        : /* no output */
-       : "r" (tp)
-       : "r2", "r3", "r4", "r5", "r6", "r7", "memory");
-
-  if (arg_yield)
-    {
-      if (tp->flag_sched_rr)
-	chx_timer_dequeue (tp);
-      chx_ready_enqueue (tp);
-    }
-
-  tp = chx_ready_pop ();
+       : "r" (tp_next)
+       : "r1", "r2", "r3", "r4", "r5", "memory");
 
   asm volatile (/* Now, r0 points to the thread to be switched.  */
 		/* Put it to *running.  */
@@ -368,6 +338,9 @@ chx_sched (uint32_t yield)
 		"ldr	r1, =running\n\t"
 		/* Update running.  */
 		"str	r0, [r1]\n\t"
+#if defined(__ARM_ARCH_7M__) || defined(__ARM_ARCH_7EM__)
+                /* FIXME if preempted thread, do "svc", which never return */
+#endif
 		/* Normal context switch */
 	"0:\n\t"
 		"add	r0, #20\n\t"
@@ -426,16 +399,11 @@ chx_sched (uint32_t yield)
 		"add	sp, #12\n\t"
 		"pop	{pc}\n\t"
 	".L_CONTEXT_SWITCH_FINISH:"
-		: "=r" (tp)		/* Return value in R0 */
-		: "0" (tp)
+		: "=r" (result)		/* Return value in R0 */
+		: "0" (tp_next)
 		: "memory");
-#endif
 
-  asm volatile ("bx	lr"
-		: "=r" (tp)
-		: "0" (tp->v)
-		: "memory");
-  return (uintptr_t)tp;
+  return result;
 }
 
 extern void cause_link_time_error_unexpected_size_of_struct_chx_thread (void);
@@ -475,14 +443,8 @@ chopstx_create_arch (uintptr_t stack_addr, size_t stack_size,
  *
  */
 
-#if defined(__ARM_ARCH_7M__) || defined(__ARM_ARCH_7EM__)
 /*
- * System call: switch to another thread.
- * There are two cases:
- *   ORIG_R0=0 (SLEEP): Current RUNNING thread is already connected to
- *                      something (mutex, cond, intr, etc.)
- *   ORIG_R0=1 (YIELD): Current RUNNING thread is active,
- *                      it is needed to be enqueued to READY queue.
+ * System call: switch to preempted thread.
  */
 void __attribute__ ((naked))
 svc (void)
@@ -490,6 +452,8 @@ svc (void)
   register struct chx_thread *tp asm ("r0");
   register uint32_t orig_r0 asm ("r1");
 
+  /* FIXME: Only if it's not idle thread.  */
+  /* from idle thread, no need to save registers (and no where to put it) */
   asm ("ldr	r1, =running\n\t"
        "ldr	r0, [r1]\n\t"
        "add	r1, r0, #20\n\t"
@@ -507,68 +471,15 @@ svc (void)
        : /* no input */
        : "r2", "r3", "r4", "r5", "r6", "memory");
 
-  if (orig_r0)			/* yield */
-    {
-      if (tp->flag_sched_rr)
-	chx_timer_dequeue (tp);
-      chx_ready_enqueue (tp);
-      running = NULL;
-    }
-
-  tp = chx_ready_pop ();
-  if (!tp)
-    asm volatile (
-	/* Now, r0 points to the thread to be switched.  */
-	/* Put it to *running.  */
-	"ldr	r1, =running\n\t"
-	/* Update running.  */
-	"str	%0, [r1]\n\t"
-	/* Spawn an IDLE thread.  */
-	"ldr	%0, =__main_stack_end__-32\n\t"
-	"msr	PSP, %0\n\t"
-	"mov	r1, #0\n\t"
-	"mov	r2, #0\n\t"
-	"mov	r3, #0\n\t"
-	"stm	%0!, {r1, r2, r3}\n\t"
-	"stm	%0!, {r1, r2, r3}\n\t"
-	"ldr	r1, =chx_idle\n\t" /* PC = idle */
-	"mov	r2, #0x010\n\t"
-	"lsl	r2, r2, #20\n\t" /* xPSR = T-flag set (Thumb) */
-	"stm	%0!, {r1, r2}\n\t"
-	"sub	%0, #3\n\t" /* EXC_RETURN to a thread with PSP */
-	"blx	%0"
-	: /* no output */ : "r" (tp) : "memory");
-  /* FIXME!!! chx_idle cannot return to here (exception handler mode) */
-  /* If we chose running chx_idle in exception handler mode,
-   * it won't be interrupted because of its priority level.
+  /* switch to preempted thread.  */
+  /* FIXME: For previous/current thread (if not it's idle thread),
+   * fix-up PC at [sp, #24] to go back to .L_CONTEXT_SWITCH_FINISH and
+   * also fix-up R0 at [sp] to have tp->v
    */
-  /*
-   * We need to modify Chopstx for Cortex-M3 to redefine "svc"
-   * into.... only handle "context switch to preempted thread".
-   *
-   * Implement voluntary_context_switch and use the new "svc"
-   * for RETURN_TO_PREEMPTED_THREAD.
-   *
-   * Modify chx_sched to use voluntary_context_switch. 
-   *
-   * Support two type of context switches differently:
-   *
-   *     context switch to preempted thread
-   *     context switch to a thread which voluntarily yielded
-   *
-   * We can put ZERO in the [sp, #24] (where PC is stored) to
-   * distinguish if the thread is preempted one or not.
-   *
-   * This is because preempted thread could be in the middle of "LDM"
-   * or "STM" instructions.  Only exception handler mode can return
-   * into such a thread.
-   */
-
   asm volatile (
 	"b	.L_CONTEXT_SWITCH"
 	: /* no output */ : "r" (tp) : "memory");
 }
-#endif
 
 
 void __attribute__ ((naked))

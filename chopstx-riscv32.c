@@ -548,38 +548,6 @@ voluntary_context_switch (struct chx_thread *tp_next)
   return result;
 }
 
-/*
- * chx_sched: switch to another thread.
- *
- * There are two cases:
- *   YIELD=0 (SLEEP): Current RUNNING thread is already connected to
- *                    something (mutex, cond, intr, etc.)
- *   YIELD=1 (YIELD): Current RUNNING thread is active,
- *                    it is needed to be enqueued to READY queue.
- *
- * Returns:
- *       >= 1 on wakeup by others, value means ticks remained for sleep.
- *          0 on normal wakeup (timer expiration, lock acquirement).
- *         -1 on cancellation.
- */
-static uintptr_t __attribute__ ((noinline))
-chx_sched (uint32_t yield)
-{
-  struct chx_thread *tp;
-
-  if (yield)
-    {
-      struct chx_thread *r = chx_running ();
-
-      if (r->flag_sched_rr)
-	chx_timer_dequeue (r);
-      chx_ready_enqueue (r);
-    }
-
-  tp = chx_ready_pop ();
-  return voluntary_context_switch (tp);
-}
-
 extern void cause_link_time_error_unexpected_size_of_struct_chx_thread (void);
 
 static struct chx_thread *

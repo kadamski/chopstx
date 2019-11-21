@@ -280,41 +280,20 @@ chx_preempt_into (struct chx_thread *tp_next)
     }
 }
 
-/*
- * chx_sched: switch to another thread.
- *
- * There are two cases:
- *   YIELD=0 (SLEEP): Current RUNNING thread is already connected to
- *                    something (mutex, cond, intr, etc.)
- *   YIELD=1 (YIELD): Current RUNNING thread is active,
- *                    it is needed to be enqueued to READY queue.
- *
- * Returns:
- *          1 on wakeup by others.
- *          0 on normal wakeup.
- *         -1 on cancellation.
- */
+
 static uintptr_t
-chx_sched (uint32_t yield)
+voluntary_context_switch (struct chx_thread *tp_next)
 {
   struct chx_thread *tp, *tp_prev;
   ucontext_t *tcp;
 
-  tp = tp_prev = chx_running ();
-  if (yield)
-    {
-      if (tp->flag_sched_rr)
-	chx_timer_dequeue (tp);
-      chx_ready_enqueue (tp);
-    }
-
-  tp = chx_ready_pop ();
-  if (tp)
-    tcp = &tp->tc;
+  tp_prev = chx_running ();
+  if (tp_next)
+    tcp = &tp_next->tc;
   else
     tcp = &idle_tc;
 
-  chx_set_running (tp);
+  chx_set_running (tp_next);
   swapcontext (&tp_prev->tc, tcp);
   chx_cpu_sched_unlock ();
 
