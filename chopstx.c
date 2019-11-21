@@ -299,7 +299,7 @@ chx_ready_enqueue (struct chx_thread *tp)
   chx_spin_unlock (&q_ready.lock);
 }
 
-struct chx_thread *chx_timer_expired (void);
+static struct chx_thread *chx_timer_expired (void);
 static struct chx_thread *chx_recv_irq (uint32_t irq_num);
 static struct chx_thread *chx_running_preempted (struct chx_thread *tp_next);
 
@@ -391,7 +391,7 @@ chx_timer_dequeue (struct chx_thread *tp)
 }
 
 
-struct chx_thread * __attribute__ ((noinline))
+static struct chx_thread *
 chx_timer_expired (void)
 {
   struct chx_thread *tp;
@@ -458,7 +458,7 @@ chx_timer_expired (void)
 }
 
 
-static struct chx_thread * __attribute__ ((noinline))
+static struct chx_thread *
 chx_recv_irq (uint32_t irq_num)
 {
   struct chx_pq *p;
@@ -561,9 +561,6 @@ chx_init (struct chx_thread *tp)
   tp->prio = 0;
   tp->parent = NULL;
   tp->v = 0;
-
-  if (CHX_PRIO_MAIN_INIT >= CHOPSTX_PRIO_INHIBIT_PREEMPTION)
-    chx_cpu_sched_lock ();
 
   tp->prio = CHX_PRIO_MAIN_INIT;
 
@@ -1624,7 +1621,7 @@ chopstx_setpriority (chopstx_prio_t prio_new)
 
   if (tp->prio < prio_cur)
     chx_sched (CHX_YIELD);
-  else if (tp->prio < CHOPSTX_PRIO_INHIBIT_PREEMPTION)
+  else
     chx_cpu_sched_unlock ();
 
   return prio_orig;
