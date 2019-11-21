@@ -7,11 +7,15 @@ NEWS - Noteworthy changes
 We used to have (an experimental) feature of higher priority of thread
 (>= CHOPSTX_PRIO_INHIBIT_PREEMPTION).  The feature offered: When a
 thread has such a priority, Chostx guarantees that it keeps running
-and no other threads can preempt the thread until the thread
-voluntarily leaves running.  I had introduced this (questionable)
-feature as an excuse against no support of masking/unmasking interrupt
-API.  From the experience of Chopstx, it is rather consistent to
-remove this feature.
+and no other threads can preempt the thread.  I had introduced this
+(questionable) feature as an excuse against no support of
+masking/unmasking interrupt API.  From the experience of Chopstx, it
+is rather consistent to remove this feature.  It was over engineering
+to support a thread having such a special priority.
+
+** New feature
+chopstx_critical (void *func (*), *arg)
+Let run FUNC with ARG, under CPU scheduler lock (== no preemption).
 
 
 * Major changes in Chopstx 1.17

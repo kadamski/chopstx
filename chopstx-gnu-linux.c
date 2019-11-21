@@ -54,7 +54,7 @@ chx_dmb (void)
 }
 
 
-static void chx_preempt_into (struct chx_thread *tp_next);
+static void preempted_context_switch (struct chx_thread *tp_next);
 
 static sigset_t ss_cur;
 
@@ -173,7 +173,7 @@ chx_idle (void)
         }
     }
 
-  chx_preempt_into (tp_next);
+  preempted_context_switch (tp_next);
   /* Never come here.  */
 }
 
@@ -187,7 +187,7 @@ chx_handle_intr (uint32_t irq_num)
     return;
 
   tp_next = chx_running_preempted (tp_next);
-  chx_preempt_into (tp_next);
+  preempted_context_switch (tp_next);
 }
 
 
@@ -220,7 +220,7 @@ sigalrm_handler (int sig, siginfo_t *siginfo, void *arg)
   if (tp_next)
     {
       tp_next = chx_running_preempted (tp_next);
-      chx_preempt_into (tp_next);
+      preempted_context_switch (tp_next);
     }
   chx_sigmask (uc);
 }
@@ -250,7 +250,7 @@ chx_init_arch (struct chx_thread *tp)
 }
 
 static void
-chx_preempt_into (struct chx_thread *tp_next)
+preempted_context_switch (struct chx_thread *tp_next)
 {
   struct chx_thread *tp_prev = chx_running ();
   chx_set_running (tp_next);
