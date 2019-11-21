@@ -332,7 +332,7 @@ voluntary_context_switch (struct chx_thread *tp_next)
        "mov	r3, %0\n\t"
        "push	{%0, r2, r3}\n\t"
        "ldr	r2, =running\n\t"
-       "ldr	%0, [r2]"
+       "ldr	%0, [r2]\n\t"
        "push	{%0, r3}\n\t"
        : "=r" (tp)
        : /* no input */
@@ -427,8 +427,8 @@ voluntary_context_switch (struct chx_thread *tp_next)
 		"add	sp, #12\n\t"
 		"pop	{pc}\n\t"
 	".L_CONTEXT_SWITCH_FINISH:\n\t"
-		"add	r1, r0, #16\n\t"
-		"ldr	r0, [r1]"       /* Get tp->v */
+		"add	r0, #16\n\t"
+		"ldr	r0, [r0]"       /* Get tp->v */
 		: "=r" (result)		/* Return value in R0 */
 		: "0" (tp_next)
 		: "memory");
