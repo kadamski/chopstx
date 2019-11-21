@@ -1,3 +1,7 @@
+2019-11-22  NIIBE Yutaka  <gniibe@fsij.org>
+
+	* chopstx-gnu-linux.c (preempted_context_switch): Rename.
+
 2019-11-21  NIIBE Yutaka  <gniibe@fsij.org>
 
 	* chopstx.c (chx_sched): New common function.
