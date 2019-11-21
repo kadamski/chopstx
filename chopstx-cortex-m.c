@@ -272,16 +272,13 @@ voluntary_context_switch (struct chx_thread *tp_next)
   register uintptr_t result asm ("r0");
 
 #if defined(__ARM_ARCH_7M__) || defined(__ARM_ARCH_7EM__)
-  if (tp_next)
-    {
-      uint32_t *sp = (uint32_t *)tp_next->tc.reg[REG_SP];
-      if (sp[6] == 0)
-        asm volatile ("svc	#0\n\t"
-       : /* no output */
-       : "r" (tp_next)
-       : "memory");
-    }
-#endif
+  asm volatile (
+	"svc	#0\n\t"
+        "add	r1, r0, #16\n\t"
+        "ldr	r0, [r1]"       /* Get tp->v */
+	: "=r" (result) : "0" (tp_next): "memory");
+#else
+  register struct chx_thread *tp asm ("r1");
 
    /*
    * r0:  TP                    scratch
@@ -293,30 +290,35 @@ voluntary_context_switch (struct chx_thread *tp_next)
    * pc:  return address	zero
    * psr: INITIAL_XPSR          scratch
    */
-  /* Build up an exception entry on stack.  */
-  /* Save callee-save registers onto CHX_THREAD struct.  */
-  asm ("mov	r1, lr\n\t"
-       "mov	r2, #0\n\t"
+  asm ("mov	%0, lr\n\t"
+       "ldr	r2, =.L_CONTEXT_SWITCH_FINISH\n\t"
        "mov	r3, #128\n\t"
        "lsl	r3, #17\n\t"
-       "push	{r1, r2, r3}\n\t"
-       "mov	r1, #0\n\t"
-       "mov	r3, r1\n\t"
-       "push	{r1, r2, r3}\n\t"
-       "push	{r0, r1}"
-       /**/
-       "add	r0, #20\n\t"
-       "stm	r0!, {r4, r5, r6, r7}\n\t"
-       "mov	r1, r8\n\t"
-       "mov	r2, r9\n\t"
-       "mov	r3, r10\n\t"
-       "mov	r4, r11\n\t"
-       "mov	r5, sp\n\t"
-       "stm	r0!, {r1, r2, r3, r4, r5}\n\t"
-       "sub	r0, #56"
+       "push	{%0, r2, r3}\n\t"
+       "mov	%0, #0\n\t"
+       "mov	r2, %0\n\t"
+       "mov	r3, %0\n\t"
+       "push	{%0, r2, r3}\n\t"
+       "ldr	r2, =running\n\t"
+       "ldr	%0, [r2]"
+       "push	{%0, r3}\n\t"
+       : "=r" (tp)
+       : /* no input */
+       : "r2", "r3", "memory");
+
+  /* Save registers onto CHX_THREAD struct.  */
+  asm ("add	r1, #20\n\t"
+       "stm	r1!, {r4, r5, r6, r7}\n\t"
+       "mov	r2, r8\n\t"
+       "mov	r3, r9\n\t"
+       "mov	r4, r10\n\t"
+       "mov	r5, r11\n\t"
+       "mov	r6, sp\n\t"
+       "stm	r1!, {r2, r3, r4, r5, r6}\n\t"
+       "sub	r1, #56"
        : /* no output */
-       : "r" (tp_next)
-       : "r1", "r2", "r3", "r4", "r5", "memory");
+       : "r" (tp)
+       : "r2", "r3", "r4", "r5", "r6", "r7", "memory");
 
   asm volatile (/* Now, r0 points to the thread to be switched.  */
 		/* Put it to *running.  */
@@ -398,12 +400,14 @@ voluntary_context_switch (struct chx_thread *tp_next)
 		"pop	{r0, r1, r2, r3}\n\t"
 		"add	sp, #12\n\t"
 		"pop	{pc}\n\t"
-	".L_CONTEXT_SWITCH_FINISH:"
+	".L_CONTEXT_SWITCH_FINISH:\n\t"
+		"add	r1, r0, #16\n\t"
+		"ldr	r0, [r1]"       /* Get tp->v */
 		: "=r" (result)		/* Return value in R0 */
 		: "0" (tp_next)
 		: "memory");
-
-  return result;
+#endif
+  return (uintptr_t)result;
 }
 
 extern void cause_link_time_error_unexpected_size_of_struct_chx_thread (void);
