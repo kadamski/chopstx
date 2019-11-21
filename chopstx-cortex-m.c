@@ -682,6 +682,7 @@ chx_handle_intr (void)
 	"ldr	r1, [r0], #4\n\t"
 	"msr	PSP, r1\n\t"
 #endif
+	"mov	r0, #0\n\t"
 	/* Unmask interrupts.  */
 #if defined(__ARM_ARCH_6M__)
 	"cpsie	i\n\t"
