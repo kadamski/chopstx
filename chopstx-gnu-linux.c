@@ -40,6 +40,13 @@ chx_running (void)
   return running;
 }
 
+static void
+chx_set_running (struct chx_thread *r)
+{
+  running = r;
+}
+
+
 /* Data Memory Barrier.  */
 static void
 chx_dmb (void)
@@ -239,15 +246,14 @@ chx_init_arch (struct chx_thread *tp)
   chx_cpu_sched_unlock ();
 
   getcontext (&tp->tc);
-
-  running = tp;
+  chx_set_running (tp);
 }
 
 static void
 chx_preempt_into (struct chx_thread *tp_next)
 {
   struct chx_thread *tp_prev = chx_running ();
-  running = tp_next;
+  chx_set_running (tp_next);
   if (tp_prev)
     {
       /*
@@ -292,7 +298,6 @@ static uintptr_t
 chx_sched (uint32_t yield)
 {
   struct chx_thread *tp, *tp_prev;
-  uintptr_t v;
   ucontext_t *tcp;
 
   tp = tp_prev = chx_running ();
@@ -303,21 +308,18 @@ chx_sched (uint32_t yield)
       chx_ready_enqueue (tp);
     }
 
-  running = tp = chx_ready_pop ();
+  tp = chx_ready_pop ();
   if (tp)
-    {
-      v = tp->v;
-      tcp = &tp->tc;
-    }
+    tcp = &tp->tc;
   else
-    {
-      v = 0;
-      tcp = &idle_tc;
-    }
+    tcp = &idle_tc;
 
+  chx_set_running (tp);
   swapcontext (&tp_prev->tc, tcp);
   chx_cpu_sched_unlock ();
-  return v;
+
+  tp = chx_running ();
+  return tp->v;
 }
 
 static void __attribute__((__noreturn__))
