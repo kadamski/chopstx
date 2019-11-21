@@ -45,8 +45,6 @@ chopstx_create (uint32_t flags_and_prio,
 #define CHOPSTX_DETACHED 0x10000
 #define CHOPSTX_SCHED_RR 0x20000
 
-#define CHOPSTX_PRIO_INHIBIT_PREEMPTION 248
-
 void chopstx_usec_wait (uint32_t usec);
 
 struct chx_spinlock {

@@ -101,9 +101,8 @@ static struct chx_queue q_join;
 static struct chx_queue q_intr;
 
 /* Forward declaration(s). */
-static void chx_request_preemption (uint16_t prio);
 static int chx_wakeup (struct chx_pq *p);
-static struct chx_thread * chx_timer_insert (struct chx_thread *tp, uint32_t usec);
+static struct chx_thread *chx_timer_insert (struct chx_thread *tp, uint32_t usec);
 static uint32_t chx_timer_dequeue (struct chx_thread *tp);
 
 
@@ -297,6 +296,10 @@ chx_ready_enqueue (struct chx_thread *tp)
   chx_spin_unlock (&q_ready.lock);
 }
 
+static struct chx_thread *chx_timer_expired (void);
+static struct chx_thread *chx_recv_irq (uint32_t irq_num);
+static struct chx_thread *chx_running_preempted (struct chx_thread *tp_next);
+
 /*
  * Here comes architecture specific code.
  */
@@ -384,7 +387,7 @@ chx_timer_dequeue (struct chx_thread *tp)
 }
 
 
-void
+static struct chx_thread *
 chx_timer_expired (void)
 {
   struct chx_thread *tp;
@@ -430,7 +433,74 @@ chx_timer_expired (void)
     }
 
   chx_spin_unlock (&q_timer.lock);
-  chx_request_preemption (prio);
+
+  if (running == NULL || (uint16_t)running->prio < prio)
+    {
+      tp = chx_ready_pop ();
+      if (tp != running)
+	return tp;
+      else
+	/* When tp->flag_sched_rr == 1, it's possible.	No context switch.  */
+	return NULL;
+    }
+  else
+    return NULL;
+}
+
+
+static struct chx_thread *
+chx_recv_irq (uint32_t irq_num)
+{
+  struct chx_pq *p;
+  struct chx_thread *r = chx_running ();
+
+  chx_disable_intr (irq_num);
+  chx_spin_lock (&q_intr.lock);
+  for (p = q_intr.q.next; p != (struct chx_pq *)&q_intr.q; p = p->next)
+    if (p->v == irq_num)
+      /* should be one at most.  */
+      break;
+  chx_spin_unlock (&q_intr.lock);
+
+  if (p)
+    {
+      struct chx_px *px = (struct chx_px *)p;
+
+      ll_dequeue (p);
+      chx_wakeup (p);
+
+      if (r == NULL || (uint16_t)r->prio < px->master->prio)
+        return chx_ready_pop ();
+    }
+
+  return NULL;
+}
+
+
+static struct chx_thread * __attribute__ ((noinline))
+chx_running_preempted (struct chx_thread *tp_next)
+{
+  struct chx_thread *r = chx_running ();
+
+  if (r == NULL)
+    return tp_next;
+
+  if (r->flag_sched_rr)
+    {
+      if (r->state == THREAD_RUNNING)
+	{
+	  chx_timer_dequeue (r);
+	  chx_ready_enqueue (r);
+	}
+      /*
+       * It may be THREAD_READY after chx_timer_expired.
+       * Then, do nothing.  It's in the ready queue.
+       */
+    }
+  else
+    chx_ready_push (r);
+
+  return tp_next;
 }
 
 
@@ -481,9 +551,6 @@ chx_init (struct chx_thread *tp)
   tp->prio = 0;
   tp->parent = NULL;
   tp->v = 0;
-
-  if (CHX_PRIO_MAIN_INIT >= CHOPSTX_PRIO_INHIBIT_PREEMPTION)
-    chx_cpu_sched_lock ();
 
   tp->prio = CHX_PRIO_MAIN_INIT;
 
@@ -1544,7 +1611,7 @@ chopstx_setpriority (chopstx_prio_t prio_new)
 
   if (tp->prio < prio_cur)
     chx_sched (CHX_YIELD);
-  else if (tp->prio < CHOPSTX_PRIO_INHIBIT_PREEMPTION)
+  else
     chx_cpu_sched_unlock ();
 
   return prio_orig;

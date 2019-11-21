@@ -54,6 +54,8 @@ chx_dmb (void)
 }
 
 
+static void chx_preempt_into (struct chx_thread *tp_next);
+
 static sigset_t ss_cur;
 
 static void
@@ -145,7 +147,7 @@ chx_cpu_sched_unlock (void)
 }
 
 static void
-idle (void)
+chx_idle (void)
 {
   for (;;)
     pause ();
@@ -154,22 +156,14 @@ idle (void)
 void
 chx_handle_intr (uint32_t irq_num)
 {
-  struct chx_pq *p;
+  struct chx_thread *tp_next;
 
-  chx_disable_intr (irq_num);
-  chx_spin_lock (&q_intr.lock);
-  for (p = q_intr.q.next; p != (struct chx_pq *)&q_intr.q; p = p->next)
-    if (p->v == irq_num)
-      {			/* should be one at most. */
-	struct chx_px *px = (struct chx_px *)p;
+  tp_next = chx_recv_irq (irq_num);
+  if (!tp_next)
+    return;
 
-	ll_dequeue (p);
-	chx_wakeup (p);
-	chx_spin_unlock (&q_intr.lock);
-	chx_request_preemption (px->master->prio);
-	return;
-      }
-  chx_spin_unlock (&q_intr.lock);
+  tp_next = chx_running_preempted (tp_next);
+  chx_preempt_into (tp_next);
 }
 
 
@@ -193,11 +187,17 @@ chx_sigmask (ucontext_t *uc)
 static void
 sigalrm_handler (int sig, siginfo_t *siginfo, void *arg)
 {
-  extern void chx_timer_expired (void);
+  struct chx_thread *tp_next;
   ucontext_t *uc = arg;
   (void)sig;
   (void)siginfo;
-  chx_timer_expired ();
+
+  tp_next = chx_timer_expired ();
+  if (tp_next)
+    {
+      tp_next = chx_running_preempted (tp_next);
+      chx_preempt_into (tp_next);
+    }
   chx_sigmask (uc);
 }
 
@@ -217,46 +217,17 @@ chx_init_arch (struct chx_thread *tp)
   idle_tc.uc_stack.ss_sp = idle_stack;
   idle_tc.uc_stack.ss_size = sizeof (idle_stack);
   idle_tc.uc_link = NULL;
-  makecontext (&idle_tc, idle, 0);
+  makecontext (&idle_tc, chx_idle, 0);
 
   getcontext (&tp->tc);
-
   chx_set_running (tp);
 }
 
 static void
-chx_request_preemption (uint16_t prio)
+chx_preempt_into (struct chx_thread *tp_next)
 {
-  ucontext_t *tcp;
-  struct chx_thread *tp_prev;
-  struct chx_thread *tp = chx_running ();
-
-  if (tp && (uint16_t)tp->prio >= prio)
-    return;
-
-  /* Change the context to another thread with higher priority.  */
-  tp_prev = tp;
-  if (tp)
-    {
-      if (tp->flag_sched_rr)
-	{
-	  if (tp->state == THREAD_RUNNING)
-	    {
-	      chx_timer_dequeue (tp);
-	      chx_ready_enqueue (tp);
-	    }
-	}
-      else
-	chx_ready_push (tp);
-    }
-
-  tp = chx_ready_pop ();
-  if (tp)
-    tcp = &tp->tc;
-  else
-    tcp = &idle_tc;
-
-  chx_set_running (tp);
+  struct chx_thread *tp_prev = chx_running ();
+  chx_set_running (tp_next);
   if (tp_prev)
     {
       /*
@@ -275,11 +246,11 @@ chx_request_preemption (uint16_t prio)
        * of the thread, and the condition of chx_sched function which
        * mandates holding cpu_sched_lock.
        */
-      swapcontext (&tp_prev->tc, tcp);
+      swapcontext (&tp_prev->tc, &tp_next->tc);
     }
-  else if (tp)
+  else
     {
-      setcontext (tcp);
+      setcontext (&tp_next->tc);
     }
 }
 

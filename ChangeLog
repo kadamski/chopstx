@@ -1,5 +1,42 @@
 2019-11-21  NIIBE Yutaka  <gniibe@fsij.org>
 
+	* chopstx.h (CHOPSTX_PRIO_INHIBIT_PREEMPTION): Remove.
+	* chopstx.c (chx_init): Remove support of
+	CHOPSTX_PRIO_INHIBIT_PREEMPTION.
+	(chopstx_setpriority): Likewise.
+
+	* chopstx-cortex-m.c (CPU_EXCEPTION_PRIORITY_PENDSV): Change the
+	value.  Now PendSV exception runs at same priority level of
+	all other exceptions (systick and interrupt exception).
+	(chx_cpu_sched_lock, chx_cpu_sched_unlock):
+	Remove support of CHOPSTX_PRIO_INHIBIT_PREEMPTION.
+	(chx_request_preemption): Change the argument with none.
+	(chx_timer_handler): New.  Use common function of
+	chx_timer_expired, local one, chx_request_preemption.
+	(chx_handle_intr): Use chx_recv_irq.
+	(chx_sched): Remove support of CHOPSTX_PRIO_INHIBIT_PREEMPTION.
+	(preempt): Have an argument from tail-chaining.
+	Remove support of CHOPSTX_PRIO_INHIBIT_PREEMPTION.
+
+	* chopstx-gnu-linux.c (chx_idle): Rename.
+	(chx_init_arch): Follow the rename.
+	(chx_handle_intr): Use chx_recv_irq, chx_running_preempted, and
+	chx_preempt_into.
+	(sigalrm_handler): Use chx_timer_expired, chx_running_preempted,
+	and chx_preempt_into.
+	(chx_preempt_into): Rename from chx_request_preemption, changing
+	argument.  Remove the handling of preempted thread, which should
+	be done by caller using chx_running_preempted, beforehand.
+
+	* entry.c (vector_table): Use chx_timer_handler.
+
+	* chopstx.c (chx_timer_expired): Pop from the ready queue and
+	return the next thread to switch.
+	(chx_recv_irq): New.
+	(chx_running_preempted): New.
+
+2019-11-21  NIIBE Yutaka  <gniibe@fsij.org>
+
 	* chopstx-cortex-m.c (chx_set_running): New.
 	(chx_init_arch): Use chx_set_running.
 	(preempt, svc): Remove set to running, not needed.

@@ -1,6 +1,19 @@
 NEWS - Noteworthy changes
 
 
+* Major changes in Chopstx 2.0
+
+** Remove support of CHOPSTX_PRIO_INHIBIT_PREEMPTION
+We used to have (an experimental) feature of higher priority of thread
+(>= CHOPSTX_PRIO_INHIBIT_PREEMPTION).  The feature offered: When a
+thread has such a priority, Chostx guarantees that it keeps running
+and no other threads can preempt the thread until the thread
+voluntarily leaves running.  I had introduced this (questionable)
+feature as an excuse against no support of masking/unmasking interrupt
+API.  From the experience of Chopstx, it is rather consistent to
+remove this feature.
+
+
 * Major changes in Chopstx 1.17
 
   Released 2019-11-20

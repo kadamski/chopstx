@@ -64,8 +64,24 @@ extern uint8_t __main_stack_end__;
 #if defined(__ARM_ARCH_7M__) || defined(__ARM_ARCH_7EM__)
 extern void svc (void);
 #endif
+
+/*
+ * In ARMv6-M Architecture Reference Manual and ARM v7-M Architecture
+ * Reference Manual, you can find a section B1.5.12 for tail-chaining.
+ *
+ * B1.5.12 Exceptions on exception return, and tail-chaining exceptions
+ */
+/*
+ * Because it is tail-chained, the preempt function has an argument
+ * with type of (struct chx_thread *), in fact.
+ */
 extern void preempt (void);
-extern void chx_timer_expired (void);
+
+/*
+ * Following functions return type of (struct chx_thread *) for
+ * tail-chained function (the preempt function), for its argument.
+ */
+extern void chx_timer_handler (void);
 extern void chx_handle_intr (void);
 
 static void nmi (void)
@@ -193,7 +209,7 @@ handler vector_table[] __attribute__ ((section(".startup.vectors"))) = {
   none,				/* Debug */
   none,				/* reserved */
   preempt,			/* PendSV */
-  chx_timer_expired,		/* SysTick */
+  chx_timer_handler,		/* SysTick */
   /* 0x40 */
   chx_handle_intr /* WWDG */,      chx_handle_intr /* PVD */,
   chx_handle_intr /* TAMPER */,    chx_handle_intr /* RTC */,
