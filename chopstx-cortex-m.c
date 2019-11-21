@@ -311,9 +311,11 @@ voluntary_context_switch (struct chx_thread *tp_next)
 #else
   register struct chx_thread *tp asm ("r1");
 
-  /* Build stack data as if it were an exception entry.  */
+  /* Build stack data as if it were an exception entry.
+   * And set the stop top to has RUNNNING.
+   */
   /*
-   * r0:  TP                    scratch
+   * r0:  RUNNING               scratch
    * r1:  0                     scratch
    * r2:  0                     scratch
    * r3:  0                     scratch
