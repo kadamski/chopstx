@@ -109,7 +109,7 @@ struct TIMER {
   uint8_t rsv1[3];
   volatile uint8_t msip;
   uint8_t rsv2[3];
-} __attribute__((packed));
+} __attribute__ ((packed));
 static struct TIMER *const TIMER = (struct TIMER *)0xD1000000;
 
 /* In Chopstx, we only use the lower 32-bit of the timer.  */
@@ -188,7 +188,7 @@ struct CLIC {
   volatile uint8_t sth;
   volatile uint8_t hth;
   volatile uint8_t mth;
-} __attribute__((packed));
+} __attribute__ ((packed));
 
 static struct CLIC *const CLIC = (struct CLIC *)0xD2000000;
 
@@ -197,7 +197,7 @@ struct CLIC_INT {
   volatile uint8_t ie;
   volatile uint8_t attr;
   volatile uint8_t ctl;
-} __attribute__((packed));
+} __attribute__ ((packed));
 static struct CLIC_INT *const CLIC_INT = (struct CLIC_INT *)0xD2001000;
 
 static void
@@ -453,13 +453,13 @@ chx_init_arch (struct chx_thread *tp)
  * NOTE: In this thread, interrupt is masked (MIE=0) and interrupt is
  * synchronously handled.
  */
-static struct chx_thread * __attribute__((used))
+static struct chx_thread * __attribute__ ((used))
 chx_idle (void)
 {
   extern void chx_prepare_sleep_mode (void);
-  register struct chx_thread *tp_next asm ("a0");
+  register struct chx_thread *tp_next asm ("a0") = NULL;
 
-  for (;;)
+  while (tp_next == NULL)
     {
       register uint32_t irq_num asm ("a0");
 
@@ -478,17 +478,11 @@ chx_idle (void)
       if (irq_num == SWINT_IRQ)
 	chx_sw_int (0);
       else if (irq_num == TIMER_IRQ)
-	{
-	  tp_next = chx_timer_expired ();
-	  break;
-	}
+	tp_next = chx_timer_expired ();
       else if (irq_num == MEMERR_IRQ)
 	memory_error ();
       else
-	{
-	  tp_next = chx_recv_irq (irq_num);
-	  break;
-	}
+	tp_next = chx_recv_irq (irq_num);
     }
 
   return tp_next;
@@ -512,6 +506,12 @@ voluntary_context_switch (struct chx_thread *tp_next)
 	SAVE_CALLEE_SAVE_REGISTERS
 	"# Check if going to IDLE thread\n\t"
 	"bnez	%0,0f\n\t"
+	/*
+	 * NOTE: Here, for running chx_idle, we can use
+	 * __main_stack_end__, because neither any threads, nor
+	 * interrupt context use that.	Using __main_stack_end__, we
+	 * can minimize stack memory usage of each thread.
+	 */
 	"# Spawn an IDLE thread, interrupt masked.\n\t"
 	"mv	tp,zero\n\t"
 	"csrw	mscratch,tp\n\t"
