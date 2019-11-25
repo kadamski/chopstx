@@ -146,13 +146,13 @@ chx_cpu_sched_unlock (void)
   pthread_sigmask (SIG_SETMASK, &ss_cur, NULL);
 }
 
-static void
+/* NOTE: Called holding the cpu_sched_lock.  */
+static struct chx_thread *
 chx_idle (void)
 {
-  struct chx_thread *tp_next;
+  struct chx_thread *tp_next = NULL;
 
-  /* All signals are masked.  */
-  for (;;)
+  while (tp_next == NULL)
     {
       int sig;
       sigset_t set;
@@ -162,19 +162,12 @@ chx_idle (void)
         continue;
 
       if (sig == SIGALRM)
-        {
-          tp_next = chx_timer_expired ();
-          break;
-        }
+        tp_next = chx_timer_expired ();
       else
-        {
-          tp_next = chx_recv_irq (sig);
-          break;
-        }
+        tp_next = chx_recv_irq (sig);
     }
 
-  preempted_context_switch (tp_next);
-  /* Never come here.  */
+  return tp_next;
 }
 
 void
@@ -190,9 +183,6 @@ chx_handle_intr (uint32_t irq_num)
   preempted_context_switch (tp_next);
 }
 
-
-static ucontext_t idle_tc;
-static char idle_stack[4096];
 
 struct chx_thread main_thread;
 
@@ -237,14 +227,6 @@ chx_init_arch (struct chx_thread *tp)
   sa.sa_flags = SA_SIGINFO|SA_RESTART;
   sigaction (SIGALRM, &sa, NULL); 
 
-  chx_cpu_sched_lock ();
-  getcontext (&idle_tc);
-  idle_tc.uc_stack.ss_sp = idle_stack;
-  idle_tc.uc_stack.ss_size = sizeof (idle_stack);
-  idle_tc.uc_link = NULL;
-  makecontext (&idle_tc, chx_idle, 0);
-  chx_cpu_sched_unlock ();
-
   getcontext (&tp->tc);
   chx_set_running (tp);
 }
@@ -287,11 +269,12 @@ voluntary_context_switch (struct chx_thread *tp_next)
   struct chx_thread *tp, *tp_prev;
   ucontext_t *tcp;
 
+  if (!tp_next)
+    tp_next = chx_idle ();
+
   tp_prev = chx_running ();
   if (tp_next)
     tcp = &tp_next->tc;
-  else
-    tcp = &idle_tc;
 
   chx_set_running (tp_next);
   swapcontext (&tp_prev->tc, tcp);
