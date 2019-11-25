@@ -448,10 +448,10 @@ chx_init_arch (struct chx_thread *tp)
 	"beqz	a0,0b\n\t"      /* Just in case if not, loop.  */
 
 /*
- * The idle thread.
+ * The idle function.
  *
- * NOTE: In this thread, interrupt is masked (MIE=0) and interrupt is
- * synchronously handled.
+ * NOTE: In this function, interrupt is masked (MIE=0) and interrupt
+ * is synchronously handled.
  */
 static struct chx_thread * __attribute__ ((used))
 chx_idle (void)
@@ -504,7 +504,7 @@ voluntary_context_switch (struct chx_thread *tp_next)
 	"mv	sp,tp\n\t"        /* Using SP, we can use C.SWSP instruction */
 	"sw	zero,0(sp)\n\t"
 	SAVE_CALLEE_SAVE_REGISTERS
-	"# Check if going to IDLE thread\n\t"
+	"# Check if going to IDLE function\n\t"
 	"bnez	%0,0f\n\t"
 	/*
 	 * NOTE: Here, for running chx_idle, we can use
@@ -512,7 +512,7 @@ voluntary_context_switch (struct chx_thread *tp_next)
 	 * interrupt context use that.	Using __main_stack_end__, we
 	 * can minimize stack memory usage of each thread.
 	 */
-	"# Spawn an IDLE thread, interrupt masked.\n\t"
+	"# Call the IDLE function, interrupt masked.\n\t"
 	"mv	tp,zero\n\t"
 	"csrw	mscratch,tp\n\t"
 	"la	sp,__main_stack_end__\n\t"
@@ -597,7 +597,7 @@ chx_handle_intr (void)
    */
   asm volatile (
 	"csrrw	sp,mscratch,sp\n\t" /* SP to MSCRATCH, thread pointer into SP */
-	"# Check if it is IDLE thread\n\t"
+	"# Check if it is IDLE\n\t"
 	"bnez	sp,0f\n\t"
 	/**/
 	"csrrw	sp,mscratch,sp\n\t" /* Recover MSCRATCH, the thread pointer */
