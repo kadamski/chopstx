@@ -2,9 +2,46 @@
 #include <stdlib.h>
 #include <chopstx.h>
 
-#include "board.h"
-#include "sys.h" /* for set_led */
+// #include "board.h"
+// #include "sys.h" /* for set_led */
 #include <contrib/usart.h>
+
+#include <mcu/gd32vf103.h>
+
+void
+set_led_b (void)
+{
+  //  GPIOA->ODR |= (1 << 1);
+  GPIOA->ODR &= ~(1 << 2);
+  //  GPIOC->ODR |= (1 << 13);
+  //  asm volatile ("0: j 0b");
+}
+
+void
+set_led_b_0 (void)
+{
+  //  GPIOA->ODR |= (1 << 1);
+  GPIOA->ODR |= (1 << 2);
+  //  GPIOC->ODR |= (1 << 13);
+  //  asm volatile ("0: j 0b");
+}
+
+void
+set_led_g (void)
+{
+  GPIOA->ODR &= ~(1 << 1);
+  //  GPIOA->ODR |= (1 << 2);
+  //  GPIOC->ODR |= (1 << 13);
+}
+
+void
+set_led (int on)
+{
+  if (on)
+    GPIOC->ODR &= ~(1 << 13);
+  else
+    GPIOC->ODR |= (1 << 13);
+}
 
 static chopstx_mutex_t mtx;
 static chopstx_cond_t cnd0;
@@ -104,11 +141,13 @@ int
 main (int argc, const char *argv[])
 {
   chopstx_poll_cond_t poll_desc;
-  uint32_t timeout;
   struct chx_poll_head *ph[1];
+  uint32_t timeout;
 
   (void)argc;
   (void)argv;
+
+  set_led (1);
 
   chopstx_mutex_init (&mtx);
   chopstx_cond_init (&cnd0);
@@ -127,9 +166,9 @@ main (int argc, const char *argv[])
   chopstx_mutex_unlock (&mtx);
 
   usart_init (PRIO_USART, STACK_ADDR_USART, STACK_SIZE_USART, ss_notify);
-  usart_config (2, B115200 | CS8 | STOP1B);
+  usart_config (0, B115200 | CS8 | STOP1B);
 
-  usart_read_prepare_poll (2, &poll_desc);
+  usart_read_prepare_poll (0, &poll_desc);
   ph[0] = (struct chx_poll_head *)&poll_desc;
 
   timeout = 200*1000*6;
@@ -138,7 +177,7 @@ main (int argc, const char *argv[])
       chopstx_poll (&timeout, 1, ph);
       if (timeout == 0)
 	{
-	  usart_write (2, "Hello\r\n", 7);
+	  usart_write (0, "Hello\r\n", 7);
 	  u ^= 1;
 	  timeout = 200*1000*6;
 	}
@@ -146,9 +185,9 @@ main (int argc, const char *argv[])
 	{
 	  char buf[256];
 	  int r;
-	  r = usart_read (2, buf, 256);
+	  r = usart_read (0, buf, 256);
 	  if (r)
-	    usart_write (2, buf, r);
+	    usart_write (0, buf, r);
 	}
     }
 

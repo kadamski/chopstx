@@ -34,7 +34,7 @@
  * PA6  - Input pull-up: SPI0_MISO (master)
  * PA7  - AF output open-drain 50MHz: SPI0_MOSI (master)
  * PA8  - (USBFS_SOF)
- * PA9  - AF output open-drain 2MHz: USART0_TX (USBFS_VBUS)
+ * PA9  - AF output push-pull 2MHz: USART0_TX (USBFS_VBUS)
  * PA10 - Input pull-up: USART0_RX0 (USBFS_ID)
  * PA11 - Push Pull output 10MHz 0 default (until USB enabled???) (USBDM)
  * PA12 - Push Pull output 10MHz 0 default (until USB enabled???) (USBDP)
@@ -43,7 +43,7 @@
  */
 #define VAL_GPIO_LED_ODR   0xFFFFE6FF
 #define VAL_GPIO_LED_CRL   0xF8F88228      /*  PA7...PA0 */
-#define VAL_GPIO_LED_CRH   0x888118E8      /* PA15...PA8 */
+#define VAL_GPIO_LED_CRH   0x888118A8      /* PA15...PA8 */
 
 #define RCC_APB2_GPIO      (RCU_APB2_GPIOA|RCU_APB2_GPIOA)
 
