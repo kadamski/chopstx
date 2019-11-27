@@ -59,10 +59,11 @@ gpio_init (void)
   RCU->APB2RST = 0;
 
   /* Configure GPIOA, GPIOC */
-  GPIOA->CRL = 0x44444224;
-  GPIOC->CRH = 0x44244444;
+  GPIOA->ODR = 0xFFFFE6FF;
+  GPIOA->CRL = 0xF8F88228;
+  GPIOA->CRH = 0x888118E8;
 
-  /* LED ON */
-  GPIOA->ODR &= ~((1 << 2)|(1 << 1));
-  GPIOC->ODR &= ~(1 << 13);
+  GPIOC->ODR = 0xFFFFFFFF;
+  GPIOC->CRL = 0x88888888;
+  GPIOC->CRH = 0x88288888;
 }
