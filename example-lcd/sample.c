@@ -329,6 +329,24 @@ lcd_clear (uint16_t color)
     for (j = 0; j < LCD_HEIGHT; j++)
       lcd_data16 (color);
 }
+
+static void
+lcd_load_image (const uint16_t *image)
+{
+  int i;
+
+  lcd_address (0, 0, LCD_WIDTH-1, LCD_HEIGHT-1);
+  for(i = 0; i < LCD_WIDTH*LCD_HEIGHT; i++)
+    lcd_data16 (image[i]);
+}
+
+/* Generated with list_565_colors.py */
+static uint16_t colors[27] =
+{
+ 0x0000, 0x000f, 0x001f, 0x03e0, 0x03ef, 0x03ff, 0x07e0, 0x07ef, 0x07ff,
+ 0x7800, 0x780f, 0x781f, 0x7be0, 0x7bef, 0x7bff, 0x7fe0, 0x7fef, 0x7fff,
+ 0xf800, 0xf80f, 0xf81f, 0xfbe0, 0xfbef, 0xfbff, 0xffe0, 0xffef, 0xffff,
+};
 
 static int
 ss_notify (uint8_t dev_no, uint16_t state_bits)
@@ -338,12 +356,15 @@ ss_notify (uint8_t dev_no, uint16_t state_bits)
   return 0;
 }
 
+#include "fsij-logo.c"
+
 int
 main (int argc, const char *argv[])
 {
   chopstx_poll_cond_t poll_desc;
   struct chx_poll_head *ph[1];
   uint32_t timeout;
+  int cl = 0;
 
   (void)argc;
   (void)argv;
@@ -384,7 +405,15 @@ main (int argc, const char *argv[])
 	  u ^= 1;
 	  timeout = 200*1000*6;
 
-          lcd_clear (u==0? 0xF800 : 0x7FFF);
+          lcd_clear (colors[cl]);
+
+          chopstx_usec_wait (1000*1000);
+          lcd_load_image (fsij_logo);
+          chopstx_usec_wait (1000*1000);
+
+          cl++;
+          if (cl >= 27)
+            cl = 0;
 	}
       else
 	{
