@@ -203,7 +203,11 @@ rb_get_prepare_poll (struct rb *rb, chopstx_poll_cond_t *poll_desc)
 const struct usart_stat *
 usart_stat (uint8_t dev_no)
 {
-  if (dev_no < USART_DEVNO_START || dev_no > USART_DEVNO_END)
+#if USART_DEVNO_START
+  if (dev_no < USART_DEVNO_START)
+    return NULL;
+#endif
+  if (dev_no > USART_DEVNO_END)
     return NULL;
   return usart_array[dev_no - USART_DEVNO_START].stat;
 }
@@ -211,7 +215,11 @@ usart_stat (uint8_t dev_no)
 static struct USART *
 get_usart_dev (uint8_t dev_no)
 {
-  if (dev_no < USART_DEVNO_START || dev_no > USART_DEVNO_END)
+#if USART_DEVNO_START
+  if (dev_no < USART_DEVNO_START)
+    return NULL;
+#endif
+  if (dev_no > USART_DEVNO_END)
     return NULL;
   return usart_array[dev_no - USART_DEVNO_START].USART;
 }
@@ -219,7 +227,11 @@ get_usart_dev (uint8_t dev_no)
 static struct rb *
 get_usart_rb_h2a (uint8_t dev_no)
 {
-  if (dev_no < USART_DEVNO_START || dev_no > USART_DEVNO_END)
+#if USART_DEVNO_START
+  if (dev_no < USART_DEVNO_START)
+    return NULL;
+#endif
+  if (dev_no > USART_DEVNO_END)
     return NULL;
   return usart_array[dev_no - USART_DEVNO_START].rb_h2a;
 }
@@ -227,7 +239,11 @@ get_usart_rb_h2a (uint8_t dev_no)
 static struct rb *
 get_usart_rb_a2h (uint8_t dev_no)
 {
-  if (dev_no < USART_DEVNO_START || dev_no > USART_DEVNO_END)
+#if USART_DEVNO_START
+  if (dev_no < USART_DEVNO_START)
+    return NULL;
+#endif
+  if (dev_no > USART_DEVNO_END)
     return NULL;
   return usart_array[dev_no - USART_DEVNO_START].rb_a2h;
 }
@@ -235,7 +251,11 @@ get_usart_rb_a2h (uint8_t dev_no)
 static struct chx_intr *
 get_usart_intr (uint8_t dev_no)
 {
-  if (dev_no < USART_DEVNO_START || dev_no > USART_DEVNO_END)
+#if USART_DEVNO_START
+  if (dev_no < USART_DEVNO_START)
+    return NULL;
+#endif
+  if (dev_no > USART_DEVNO_END)
     return NULL;
   return usart_array[dev_no - USART_DEVNO_START].intr;
 }
