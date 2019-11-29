@@ -14,14 +14,13 @@
  * ADC clock  = ???
  */
 
-/*
+/* HXTAL 8MHz input => PLL output = 8 * 12 = 96 MHz */
 #define RCU_CFG0_PLL_MUL_VALUE RCU_CFG0_PLL_MUL12
-*/
 
-#define GPIO_LED_BASE   GPIOA_BASE
-#define GPIO_LED_CLEAR_TO_EMIT     1 /* LED Green */
-#define GPIO_USB_BASE   GPIOA_BASE
-#define GPIO_OTHER_BASE GPIOC_BASE
+#define GPIO_LED   GPIOC
+#define GPIO_LED_CLEAR_TO_EMIT     13 /* LED Red */
+#define GPIO_USB   GPIOA
+#define GPIO_OTHER GPIOB
 
 /*
  * Port A setup.
@@ -30,9 +29,9 @@
  * PA2  - Push-pull output 2MHz 1 default (LED blue  0: ON 1: OFF)
  * PA3  - 
  * PA4  - <Can be used for GPIO>
- * PA5  - AF output open-drain 50MHz: SPI0_SCK
+ * PA5  - AF output push-pull 50MHz: SPI0_SCK
  * PA6  - Input pull-up: SPI0_MISO (master)
- * PA7  - AF output open-drain 50MHz: SPI0_MOSI (master)
+ * PA7  - AF output push-pull 50MHz: SPI0_MOSI (master)
  * PA8  - (USBFS_SOF)
  * PA9  - AF output push-pull 2MHz: USART0_TX (USBFS_VBUS)
  * PA10 - Input pull-up: USART0_RX0 (USBFS_ID)
@@ -41,18 +40,27 @@
  * ------------------------ Default
  * PAx  - input with pull-up.
  */
-#define VAL_GPIO_LED_ODR   0xFFFFE6FF
-#define VAL_GPIO_LED_CRL   0xF8F88228      /*  PA7...PA0 */
-#define VAL_GPIO_LED_CRH   0x888118A8      /* PA15...PA8 */
+#define VAL_GPIO_USB_ODR   0xFFFFE6FF
+#define VAL_GPIO_USB_CRL   0xB8B88228      /*  PA7...PA0 */
+#define VAL_GPIO_USB_CRH   0x888118A8      /* PA15...PA8 */
 
-#define RCC_APB2_GPIO      (RCU_APB2_GPIOA|RCU_APB2_GPIOA)
+#define RCU_APB2_GPIO      (RCU_APB2_GPIOA|RCU_APB2_GPIOB|RCU_APB2_GPIOC)
+
+/*
+ * PB0 - Push-pull output 10MHz 1 default (OLED D/C#)
+ * PB1 - Push-pull output 10MHz 1 default (OLED CS#)
+ * PB2 - Push-pull output 10MHz 1 default (OLED RST#)
+ */
+#define VAL_GPIO_OTHER_ODR 0xFFFFFFFF
+#define VAL_GPIO_OTHER_CRL 0x88888111      /*  PB7...PB0 */
+#define VAL_GPIO_OTHER_CRH 0x88888888      /* PB15...PB8 */
 
 /*
  * PC13 - Push-pull output 2MHz 1 default (LED red  0: ON 1: OFF)
  */
-#define VAL_GPIO_OTHER_ODR 0xFFFFFFFF
-#define VAL_GPIO_OTHER_CRL 0x88888888      /*  PC7...PC0 */
-#define VAL_GPIO_OTHER_CRH 0x88288888      /* PC15...PC8 */
+#define VAL_GPIO_LED_ODR 0xFFFFFFFF
+#define VAL_GPIO_LED_CRL 0x88888888      /*  PC7...PC0 */
+#define VAL_GPIO_LED_CRH 0x88288888      /* PC15...PC8 */
 
 /*
  * Board specific information other than clock and GPIO initial
