@@ -46,6 +46,8 @@ struct SPI {
 #define SPI0_BASE           (APB2PERIPH_BASE + 0x3000)
 #define SPI0 ((struct SPI *)SPI0_BASE)
 
+#define INTR_REQ_SPI0 54        /* For GD32VF103 */
+
 static struct SPI *SPIx = SPI0;
 static struct chx_intr spi_intr;
 static int tx_ready;
@@ -74,7 +76,7 @@ spi_init (void)
   uint32_t cr1_reg = 0;
 
   /* Enable SPI module */
-  RCC->APB2RENR |= (1 << 12);
+  RCC->APB2ENR |= (1 << 12);
   RCC->APB2RSTR = (1 << 12);
   RCC->APB2RSTR = 0;
 
@@ -182,7 +184,7 @@ check_transmit (int for_what)
         }
 #endif
 
-      chopstx_intr_done (&spi_intr)
+      chopstx_intr_done (&spi_intr);
     }
 }
 
