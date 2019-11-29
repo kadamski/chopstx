@@ -1,1 +1,1 @@
-../board/board-st-nucleo-l432.h
+../board/board-longan-nano.h

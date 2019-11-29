@@ -22,7 +22,7 @@ clock_init (void)
 
   /* PLL setup */
   RCU->CFG0 &= ~RCU_CFG0_PLLSRC_PLLMF_MASK;
-  RCU->CFG0 |= RCU_CFG0_PLL_MUL12 | RCU_CFG0_PLLSRC_HXTAL;
+  RCU->CFG0 |= RCU_CFG0_PLL_MUL_VALUE | RCU_CFG0_PLLSRC_HXTAL;
 
   RCU->CFG1 &= ~RCU_CFG1_PREDV0SEL_MASK;
   RCU->CFG1 |= RCU_CFG1_PREDV0SEL_HXTAL;
@@ -49,21 +49,29 @@ clock_init (void)
 static void __attribute__((used,section(".text.startup.1")))
 gpio_init (void)
 {
-  /* Enable GPIOA */
-  RCU->APB2EN  |= RCU_APB2_GPIOA;
-  RCU->APB2RST = RCU_APB2_GPIOA;
-  RCU->APB2RST = 0;
-  /* Enable GPIOC */
-  RCU->APB2EN  |= RCU_APB2_GPIOC;
-  RCU->APB2RST = RCU_APB2_GPIOC;
+  RCU->APB2EN  |= RCU_APB2_GPIO;
+  RCU->APB2RST = RCU_APB2_GPIO;
   RCU->APB2RST = 0;
 
-  /* Configure GPIOA, GPIOC */
-  GPIOA->ODR = 0xFFFFE6FF;
-  GPIOA->CRL = 0xF8F88228;
-  GPIOA->CRH = 0x888118A8;
+#ifdef AFIO_MAPR_SOMETHING
+  AFIO->MAPR |= AFIO_MAPR_SOMETHING;
+#endif
 
-  GPIOC->ODR = 0xFFFFFFFF;
-  GPIOC->CRL = 0x88888888;
-  GPIOC->CRH = 0x88288888;
+  /* LED is mandatory.  We configure it always.  */
+  GPIO_LED->ODR = VAL_GPIO_LED_ODR;
+  GPIO_LED->CRH = VAL_GPIO_LED_CRH;
+  GPIO_LED->CRL = VAL_GPIO_LED_CRL;
+
+  /* If there is USB enabler pin and it's independent, we configure it.  */
+#if defined(GPIO_USB) && defined(VAL_GPIO_USB_ODR)
+  GPIO_USB->ODR = VAL_GPIO_USB_ODR;
+  GPIO_USB->CRH = VAL_GPIO_USB_CRH;
+  GPIO_USB->CRL = VAL_GPIO_USB_CRL;
+#endif
+
+#ifdef GPIO_OTHER
+  GPIO_OTHER->ODR = VAL_GPIO_OTHER_ODR;
+  GPIO_OTHER->CRH = VAL_GPIO_OTHER_CRH;
+  GPIO_OTHER->CRL = VAL_GPIO_OTHER_CRL;
+#endif
 }

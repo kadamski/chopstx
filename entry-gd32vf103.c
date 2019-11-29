@@ -27,14 +27,11 @@
  *
  */
 
-#include <stdint.h>
-#include <stdlib.h>
-#include <chopstx.h>
-
+#include "board.h"
 #include "mcu/clk_gpio_init-gd32vf103.c"
 
 /*
- *
+ * Startup entry point.
  */
 void __attribute__ ((naked,section(".text.startup.0")))
 entry (void)
