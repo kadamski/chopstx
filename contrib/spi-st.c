@@ -42,46 +42,74 @@ struct SPI {
   volatile uint32_t TXCRCR;
 };
 
-static struct chx_intr spi_intr;
+/* It is named SPI0 in GD32VF103, while it's "SPI1" in RM0008 of STM32F103 */
+#define SPI0_BASE           (APB2PERIPH_BASE + 0x3000)
+#define SPI0 ((struct SPI *)SPI0_BASE)
 
-void
+static struct SPI *SPIx = SPI0;
+static struct chx_intr spi_intr;
+static int tx_ready;
+static int rx_done;
+
+/*
+ * For now, it only support configuration of a specific use case:
+ *
+ *     SPI0 of GD32VF103
+ *     Master mode
+ *     Hardware NSS pin not used
+ *     Two unidirectional lines, full duplex
+ *     CRC enabled
+ *     8-bit data frame
+ *     MSBit first
+ *     Clock polarity: High==idle 
+ *
+ * We need to consider what kind of configuration can be specified
+ * by the API.  Perhaps, it should return an error code when it is
+ * not supported by the hardware.
+ */
+
+int
 spi_init (void)
 {
-  uint32_t reg;
+  uint32_t cr1_reg = 0;
 
   /* Enable SPI module */
+  RCC->APB2RENR |= (1 << 12);
   RCC->APB2RSTR = (1 << 12);
   RCC->APB2RSTR = 0;
-  RCC->APB2RENR |= (1 << 12);
 
-  if (master)
-    reg |= SPICR_MSTR;
+  /* Master mode */
+  cr1_reg |= (1 << 2);          /* In RM0008, it's called MSTR */
 
-  if (nss_no_hw_nsspin)
-    {
-      reg |= (1 << 9);          /* In RM0008, it's called SSM */
-      if (master)
-        reg |= (1 << 8);        /* In RM0008, it's called SSI */
-    }
+  /* No use of hardware NSS pin */
+  cr1_reg |= (1 << 9);          /* In RM0008, it's called SSM */
+  cr1_reg |= (1 << 8);          /* In RM0008, it's called SSI */
 
-  /* transfer mode is 2 unidirectional lines, full duplex */
-  /* (1<<15), (1<<14), (1<<10) */
-  reg |= (1 << 13); /* enable CRC */
-  /* data-frame-format: 8-bit 0 (16-bit (1<<11)) */
-  /* bit-order: MSB first 0, LSB first (1<<7)  */
-  reg |= (0x02 << 3);            /* prescaler: fPCLK/8 */
-  reg |= (1 << 1);               /* clock polarity 1==idle */
-  reg |= (1 << 0);               /* second clock data capture edge */
-  reg |= (1 << 6);               /* SPI enable */
+  /* Two unidirectional lines, full duplex: Bit15=0, Bit14=0, Bit10=0 */
+  /* Bit11: data-frame-format: 8-bit 0 (16-bit (1<<11)) */
+  /* But7:  bit-order: MSB first 0, LSB first (1<<7)  */
 
-  SPIx->CR1 = reg;
-  // SPIx->CRCPR = 7; /*Just use reset default value of 7*/
-  // Don't touch I2SCFGR, I2SPR
+  /* Enable CRC */
+  cr1_reg |= (1 << 13);
+
+  cr1_reg |= (0x02 << 3);            /* prescaler: fPCLK/8 */
+  cr1_reg |= (1 << 1);               /* clock polarity 1==idle */
+  cr1_reg |= (1 << 0);               /* second clock data capture edge */
+  cr1_reg |= (1 << 6);               /* SPI enable */
+
+  SPIx->CR1 = cr1_reg;
+
+  /* Don't touch CRCPR: Just use reset default value of 7 */
+  /* Don't touch I2SCFGR, I2SPR */
 
   chopstx_claim_irq (&spi_intr, INTR_REQ_SPI0);
+  tx_ready = 0;
+  rx_done = 0;
 
-  /* Notification for Tx empty, Rx ready, or Error */
+  /* Enable notification for Tx empty, Rx done, or Error */
   SPIx->CR2 = (1 << 7) | (1 << 6) | (1 << 5);
+
+  return 0;
 }
 
 static void
@@ -103,8 +131,6 @@ get_data (void)
 }
 
 
-static int tx_ready;
-static int rx_done;
 #define CHECK_TX 0
 #define CHECK_RX 1
 
@@ -131,37 +157,44 @@ check_transmit (int for_what)
       chopstx_intr_wait (&spi_intr);
       status = SPIx->SR;
 
-      if ((status & TXE))
-        {
-          tx_ready = 1;
-          SPIx->CR2 &= ~(1 << 7);
-        }
-
-      if ((status & RXNE))
+      if ((status & (1 << 0)))
         {
           rx_done = 1;
           SPIx->CR2 &= ~(1 << 6);
         }
 
-      if ((status & ERRBITS))
+      if ((status & (1 << 1)))
         {
-          /*FIXME: stat count++ */
+          tx_ready = 1;
+          SPIx->CR2 &= ~(1 << 7);
+        }
+
+      if ((status & (1 << 4)))
+        {
+          /*FIXME: stat crc_err_count++ */
           clear_crc_err ();
         }
+
+#if 0
+      /*FIXME: stat err_count++ */
+      if ((status & 0x00fc))
+        {
+        }
+#endif
 
       chopstx_intr_done (&spi_intr)
     }
 }
 
 void
-spi_data_send (uint16_t data)
+spi_send (uint16_t data)
 {
   check_transmit (CHECK_TX);
   put_data (data);
 }
 
 uint16_t
-spi_data_receive (void)
+spi_recv (void)
 {
   check_transmit (CHECK_RX);
   return get_data ();
