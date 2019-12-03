@@ -8,6 +8,7 @@ FRAUCHEKY = ../../fraucheky
 LDSCRIPT=
 
 CSRC = main.c
+ARCH=gnu-linux
 CHIP=gnu-linux
 USE_SYS = yes
 USE_USB = yes

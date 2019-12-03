@@ -65,10 +65,12 @@ ifeq ($(EMULATION),)
 MCFLAGS   = -mcpu=$(MCU)
 LDFLAGS   = $(MCFLAGS) -nostartfiles -T$(LDSCRIPT) \
             -Wl,-Map=$(BUILDDIR)/$(PROJECT).map,--cref,--no-warn-mismatch,--gc-sections
+DEFS      += -DARCH_HEADER='"chopstx-$(ARCH).h"' -DARCH_IMPL='"chopstx-$(ARCH).c"'
 else
 MCFLAGS   =
 LDFLAGS   =
-DEFS      += -D_GNU_SOURCE
+DEFS      += -D_GNU_SOURCE -DARCH_HEADER='"chopstx-gnu-linux.h"' \
+             -DARCH_IMPL='"chopstx-gnu-linux.c"'
 endif
 
 CFLAGS    = $(MCFLAGS) $(OPT) $(CWARN) -Wa,-alms=$(BUILDDIR)/$(notdir $(<:.c=.lst)) $(DEFS)

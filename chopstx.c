@@ -73,11 +73,7 @@ chx_fatal (uint32_t err_code)
 }
 
 /* Include the definition of thread context structure.  */
-#ifdef GNU_LINUX_EMULATION
-#include "chopstx-gnu-linux.h"
-#else
-#include "chopstx-cortex-m.h"
-#endif
+#include ARCH_HEADER
 
 /* ALLOW_SLEEP for the idle thread.  */
 int chx_allow_sleep;
@@ -304,11 +300,7 @@ static struct chx_thread *chx_running_preempted (struct chx_thread *tp_next);
  * Here comes architecture specific code.
  */
 
-#ifdef GNU_LINUX_EMULATION
-#include "chopstx-gnu-linux.c"
-#else
-#include "chopstx-cortex-m.c"
-#endif
+#include ARCH_IMPL
 
 static void
 chx_set_timer (struct chx_thread *tp, uint32_t ticks)

@@ -8,6 +8,7 @@ CHOPSTX = ..
 LDSCRIPT=
 CSRC = sample.c usb-cdc.c command.c
 
+ARCH=gnu-linux
 CHIP=gnu-linux
 USE_SYS = yes
 USE_USB = yes

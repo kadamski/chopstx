@@ -8,6 +8,7 @@ LDSCRIPT= lcd.ld
 CSRC = primer2-switches.c primer2-ts.c lcd.c main.c \
        neug.c sha256.c
 
+ARCH=cortex-m
 CHIP=stm32f103
 USE_SYS = yes
 USE_USB = yes

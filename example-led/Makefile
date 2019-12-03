@@ -15,6 +15,7 @@ LDSCRIPT= sample.ld.m4
 ### LDSCRIPT= sample.ld.m3
 CSRC = sample.c
 
+ARCH=cortex-m
 CHIP=stm32l4
 USE_SYS = yes
 

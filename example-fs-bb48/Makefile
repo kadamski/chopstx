@@ -7,6 +7,7 @@ PROJECT = sample
 CHOPSTX = ..
 LDSCRIPT= sample.ld
 CSRC = sample.c usb-cdc.c command.c touch.c
+ARCH=cortex-m
 CHIP=mkl27z
 
 USE_SYS = yes

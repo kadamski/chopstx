@@ -7,6 +7,7 @@ LDSCRIPT= hacker-emblem.ld
 
 CSRC = reset.c hh.c
 
+ARCH=cortex-m
 CHIP=stm32f0
 
 # Hacker Emblem and "Happy Hacking!" demonstration

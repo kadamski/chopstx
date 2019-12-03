@@ -1,3 +1,18 @@
+2019-12-03  NIIBE Yutaka  <gniibe@fsij.org>
+
+	* example-cdc/Makefile (ARCH): Define.
+	* example-cdc-gnu-linux/Makefile (ARCH): Ditto.
+	* example-fraucheky/Makefile (ARCH): Ditto.
+	* example-fs-bb48/Makefile (ARCH): Ditto.
+	* example-fsm-55/Makefile (ARCH): Ditto.
+	* example-led/Makefile (ARCH): Ditto.
+	* example-primer2/Makefile (ARCH): Ditto.
+	* example-usart/Makefile (ARCH): Ditto.
+	* example-usb-serial/Makefile (ARCH): Ditto.
+
+	* chopstx.c: Include files by ARCH_HEADER and ARCH_IMPL.
+	* rules.mk (DEFS): Define ARCH_HEADER and ARCH_IMPL by ARCH.
+
 2019-11-25  NIIBE Yutaka  <gniibe@fsij.org>
 
 	* chopstx-gnu-linux.c (chx_idle): Synchronous IDLE.

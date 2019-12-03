@@ -6,6 +6,7 @@ CHOPSTX = ..
 LDSCRIPT= sample.ld.m4
 CSRC = sample.c usb-cdc.c
 
+ARCH=cortex-m
 CHIP=stm32l4
 
 USE_SYS = yes
