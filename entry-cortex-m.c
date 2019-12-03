@@ -1,5 +1,5 @@
 /*
- * entry.c - Entry routine when reset and interrupt vectors.
+ * entry-cortex-m.c - Entry routine when reset and interrupt vectors.
  *
  * Copyright (C) 2013, 2014, 2015, 2016, 2017, 2019
  *               Flying Stone Technology

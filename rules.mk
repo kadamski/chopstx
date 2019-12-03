@@ -1,7 +1,7 @@
 # Chopstx make rules.
 
 ifeq ($(EMULATION),)
-CSRC += $(CHOPSTX)/entry.c
+CSRC += $(CHOPSTX)/entry-$(ARCH).c
 else
 CSRC += $(CHOPSTX)/entry-gnu-linux.c
 endif

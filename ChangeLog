@@ -1,5 +1,17 @@
 2019-12-03  NIIBE Yutaka  <gniibe@fsij.org>
 
+	* mcu/gd32vf103.h: New.
+	* mcu/chx-gd32vf103.c: New.
+	* mcu/clk_gpio_init-gd32vf103.c: New.
+
+	* chopstx-riscv32.h: New.
+	* chopstx-riscv32.c: New.
+	* entry-riscv32.c: New.
+
+	* entry-cortex-m.c: Rename from entry.c.
+
+2019-12-03  NIIBE Yutaka  <gniibe@fsij.org>
+
 	* contrib/spi-st.c: New.
 
 	* chopstx.c (chx_timer_expired): When no timer, explicitly call
