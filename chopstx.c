@@ -387,7 +387,9 @@ chx_timer_expired (void)
   uint16_t prio = 0;			/* Use uint16_t here. */
 
   chx_spin_lock (&q_timer.lock);
-  if ((tp = (struct chx_thread *)ll_pop (&q_timer.q)))
+  if (!(tp = (struct chx_thread *)ll_pop (&q_timer.q)))
+    chx_systick_reload (0);
+  else
     {
       uint32_t next_tick = tp->v;
 
@@ -399,7 +401,9 @@ chx_timer_expired (void)
 	if ((uint16_t)tp->prio > prio)
 	  prio = (uint16_t)tp->prio;
 
-      if (!ll_empty (&q_timer.q))
+      if (ll_empty (&q_timer.q))
+	chx_systick_reload (0);
+      else
 	{
 	  struct chx_thread *tp_next;
 
@@ -419,7 +423,9 @@ chx_timer_expired (void)
 		  prio = (uint16_t)tp->prio;
 	    }
 
-	  if (!ll_empty (&q_timer.q))
+	  if (ll_empty (&q_timer.q))
+	    chx_systick_reload (0);
+	  else
 	    chx_set_timer ((struct chx_thread *)&q_timer.q, next_tick);
 	}
     }
