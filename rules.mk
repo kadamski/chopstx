@@ -62,23 +62,35 @@ LLIBDIR   = $(patsubst %,-L%,$(LIBDIR))
 VPATH     = $(sort $(dir $(CSRC)))
 ###
 ifeq ($(EMULATION),)
+ifeq ($(ARCH),riscv32)
+# For now, just for my use of picolibc
+INCDIR += /usr/local/picolibc/riscv64-unknown-elf/include
+LIBDIR += /usr/local/picolibc/riscv64-unknown-elf/lib/rv32imac/ilp32
+#
+MCFLAGS   = -march=rv32imac -mabi=ilp32
+LDFLAGS   = $(MCFLAGS) -nodefaultlibs -nostartfiles -lc -T$(LDSCRIPT) \
+            -Wl,-Map=$(BUILDDIR)/$(PROJECT).map,--cref,--no-warn-mismatch
+else
 MCFLAGS   = -mcpu=$(MCU)
 LDFLAGS   = $(MCFLAGS) -nostartfiles -T$(LDSCRIPT) \
             -Wl,-Map=$(BUILDDIR)/$(PROJECT).map,--cref,--no-warn-mismatch,--gc-sections
-DEFS      += -DARCH_HEADER='"chopstx-$(ARCH).h"' -DARCH_IMPL='"chopstx-$(ARCH).c"'
+endif
 else
 MCFLAGS   =
 LDFLAGS   =
-DEFS      += -D_GNU_SOURCE -DARCH_HEADER='"chopstx-gnu-linux.h"' \
-             -DARCH_IMPL='"chopstx-gnu-linux.c"'
+DEFS      += -D_GNU_SOURCE
 endif
+DEFS      += -DARCH_HEADER='"chopstx-$(ARCH).h"' -DARCH_IMPL='"chopstx-$(ARCH).c"'
 
 CFLAGS    = $(MCFLAGS) $(OPT) $(CWARN) -Wa,-alms=$(BUILDDIR)/$(notdir $(<:.c=.lst)) $(DEFS)
 LDFLAGS  += $(LLIBDIR)
 
 ifeq ($(EMULATION),)
+ifeq ($(ARCH),riscv32)
+else
 CFLAGS   += -mthumb -mno-thumb-interwork -DTHUMB
 LDFLAGS  += -mthumb -mno-thumb-interwork
+endif
 endif
 
 CFLAGS   += -MD -MP -MF .dep/$(@F).d
