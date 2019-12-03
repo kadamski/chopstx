@@ -1,0 +1,1 @@
+../board/board-longan-nano.h

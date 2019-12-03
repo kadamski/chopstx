@@ -1,5 +1,9 @@
 2019-12-03  NIIBE Yutaka  <gniibe@fsij.org>
 
+	* example-lcd: New.
+
+2019-12-03  NIIBE Yutaka  <gniibe@fsij.org>
+
 	* contrib/usart-gd32vf103.c: New.
 
 	* contrib/usart-common.c (usart_stat, get_usart_dev)
