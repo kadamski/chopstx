@@ -3,6 +3,8 @@ NEWS - Noteworthy changes
 
 * Major changes in Chopstx 2.0
 
+  Released 20??-??-??
+
 ** Remove support of CHOPSTX_PRIO_INHIBIT_PREEMPTION
 We used to have (an experimental) feature of higher priority of thread
 (>= CHOPSTX_PRIO_INHIBIT_PREEMPTION).  The feature offered: When a
@@ -16,6 +18,9 @@ to support a thread having such a special priority.
 ** New feature
 chopstx_critical (void *func (*), *arg)
 Let run FUNC with ARG, under CPU scheduler lock (== no preemption).
+
+** RISC-V MCU support
+RISC-V support has been added.  It's for the core named Bumblebee.
 
 
 * Major changes in Chopstx 1.17

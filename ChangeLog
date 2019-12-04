@@ -1,3 +1,7 @@
+2019-12-04  NIIBE Yutaka  <gniibe@fsij.org>
+
+	* chopstx-gnu-linux.c (chx_thread_start): Fix return value.
+
 2019-12-03  NIIBE Yutaka  <gniibe@fsij.org>
 
 	* rules.mk [ARCH=riscv32] (MCFLAGS, LDFLAGS): Define.
