@@ -39,6 +39,12 @@
  * PA12 - Push Pull output 10MHz 0 default (until USB enabled???) (USBDP)
  * ------------------------ Default
  * PAx  - input with pull-up.
+ *
+ * NOTE: It's USB device bus power configuration, where we don't
+ * monitor VBUS voltage change.  For self powered system, we need to
+ * monitor VBUS pin for detecting USB connection.  Supporting self
+ * powered system, you need to change the USB driver, and when doing
+ * so, PA9 should be used for USBFS_VBUS.
  */
 #define VAL_GPIO_USB_ODR   0xFFFFE6FF
 #define VAL_GPIO_USB_CRL   0xB8B88228      /*  PA7...PA0 */
@@ -47,12 +53,12 @@
 #define RCU_APB2_GPIO      (RCU_APB2_GPIOA|RCU_APB2_GPIOB|RCU_APB2_GPIOC)
 
 /*
- * PB0 - Push-pull output 10MHz 1 default (OLED D/C#)
- * PB1 - Push-pull output 10MHz 1 default (OLED CS#)
- * PB2 - Push-pull output 10MHz 1 default (OLED RST#)
+ * PB0 - Push-pull output 50MHz 1 default (OLED D/C#)
+ * PB1 - Push-pull output 10MHz 1 default (OLED RST#)
+ * PB2 - Push-pull output 50MHz 1 default (OLED CS#)
  */
 #define VAL_GPIO_OTHER_ODR 0xFFFFFFFF
-#define VAL_GPIO_OTHER_CRL 0x88888111      /*  PB7...PB0 */
+#define VAL_GPIO_OTHER_CRL 0x88888313      /*  PB7...PB0 */
 #define VAL_GPIO_OTHER_CRH 0x88888888      /* PB15...PB8 */
 
 /*
