@@ -159,12 +159,12 @@ chx_idle (void)
 
       sigfillset (&set);
       if (sigwait (&set, &sig))
-        continue;
+	continue;
 
       if (sig == SIGALRM)
-        tp_next = chx_timer_expired ();
+	tp_next = chx_timer_expired ();
       else
-        tp_next = chx_recv_irq (sig);
+	tp_next = chx_recv_irq (sig);
     }
 
   return tp_next;
