@@ -38,11 +38,19 @@ enum DESCRIPTOR_TYPE
 #define USB_SETUP_GET(req) ((req & REQUEST_DIR) != 0)
 
 struct device_req {
-  uint8_t type;
-  uint8_t request;
-  uint16_t value;
-  uint16_t index;
-  uint16_t len;
+  union {
+    struct {
+      uint8_t type;
+      uint8_t request;
+      uint16_t value;
+      uint16_t index;
+      uint16_t len;
+    };
+    struct {
+      uint32_t w0;
+      uint32_t w1;
+    };
+  };
 };
 
 struct ctrl_data {
@@ -51,12 +59,27 @@ struct ctrl_data {
   uint8_t require_zlp;
 };
 
+#ifdef MCU_GD32VF1
+#define USB_REQUIRE_TXRX_INFO 1
+#endif
+
+#ifdef USB_REQUIRE_TXRX_INFO
+struct epctl {
+  uint8_t *addr;
+  uint16_t len;
+};
+#endif
+
 struct usb_dev {
   uint8_t configuration;
   uint8_t feature;
   uint8_t state;
   struct device_req dev_req;
   struct ctrl_data ctrl_data;
+#ifdef USB_REQUIRE_TXRX_INFO
+  struct epctl epctl_tx[3];
+  struct epctl epctl_rx[3];
+#endif
 };
 
 enum {
@@ -152,7 +175,22 @@ void usb_lld_rx_enable_buf (int ep_num, void *buf, size_t len);
 void usb_lld_setup_endp (struct usb_dev *dev, int ep_num, int rx_en, int tx_en);
 void usb_lld_stall_tx (int ep_num);
 void usb_lld_stall_rx (int ep_num);
-#else
+#elif defined(MCU_GD32VF1)
+#define INTR_REQ_USB        86
+#define INTR_REQ_USB_WAKEUP 61
+void usb_lld_tx_enable_buf (struct usb_dev *dev, int ep_num, const void *buf, size_t len);
+void usb_lld_rx_enable_buf (struct usb_dev *dev, int ep_num, void *buf, size_t len);
+
+/* EP_TYPE[1:0] EndPoint TYPE */
+#define EP_CONTROL     0x00
+#define EP_ISOCHRONOUS 0x01
+#define EP_BULK        0x02
+#define EP_INTERRUPT   0x03
+
+void usb_lld_setup_endp (struct usb_dev *dev, int ep_num, int ep_type, int rx_en, int tx_en);
+void usb_lld_stall_tx (struct usb_dev *dev, int ep_num);
+void usb_lld_stall_rx (struct usb_dev *dev, int ep_num);
+#else /* STM32L4 or STM32F103/GD32F103 */
 #if defined(MCU_STM32L4)
 #define INTR_REQ_USB 67
 #else

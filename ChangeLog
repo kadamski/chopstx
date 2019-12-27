@@ -1,5 +1,15 @@
 2019-12-27  NIIBE Yutaka  <gniibe@fsij.org>
 
+	* mcu/usb-gd32vf103.c: New.
+
+	* mcu/clk_gpio_init-gd32vf103.c (clock_init): Configure USB clock.
+
+	* mcu/gd32vf103.h (RCU_CFG0_USBFSPSC_DIV2): New.
+
+	* usb_lld.h [MCU_GD32VF1]: Support GD32VF103.
+
+2019-12-27  NIIBE Yutaka  <gniibe@fsij.org>
+
 	* chopstx.c (chopstx_poll): Call CHECK for condition
 	valiable after woken up.
 

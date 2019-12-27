@@ -33,6 +33,7 @@ static struct RCU *const RCU = (struct RCU *)0x40021000;
 #define RCU_CFG0_SCS_MASK           0x00000003
 #define RCU_CFG0_SCSS_PLL           0x00000008
 #define RCU_CFG0_CKSYSSRC_PLL       0x00000002
+#define RCU_CFG0_USBFSPSC_DIV2      0x00c00000
 
 #define RCU_CFG1_PREDV0SEL_MASK     0x00010000
 #define RCU_CFG1_PREDV0SEL_HXTAL    0x00000000
@@ -40,6 +41,8 @@ static struct RCU *const RCU = (struct RCU *)0x40021000;
 #define RCU_APB2_GPIOA  0x00000004
 #define RCU_APB2_GPIOB  0x00000008
 #define RCU_APB2_GPIOC  0x00000010
+
+#define RCU_AHB_USBFS   0x00001000
 
 /* Semantics is exactly same as STM32F103.  */
 struct GPIO {
