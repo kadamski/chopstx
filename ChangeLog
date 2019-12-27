@@ -1,5 +1,11 @@
 2019-12-27  NIIBE Yutaka  <gniibe@fsij.org>
 
+	* contrib/spi-st.c (check_transmit, put_data): Fix handling
+	conditions.
+	[!SPI_USE_INTERRUPT]: Support busy wait mode.
+
+2019-12-27  NIIBE Yutaka  <gniibe@fsij.org>
+
 	* mcu/usb-gd32vf103.c: New.
 
 	* mcu/clk_gpio_init-gd32vf103.c (clock_init): Configure USB clock.

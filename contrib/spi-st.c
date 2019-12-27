@@ -31,6 +31,10 @@
 #include <chopstx.h>
 #include <mcu/stm32.h>
 
+#ifndef SPI_USE_INTERRUPT
+#define SPI_BUSY_WAIT 1
+#endif
+
 /* Hardware registers */
 struct SPI {
   volatile uint32_t CR1;
@@ -49,7 +53,9 @@ struct SPI {
 #define INTR_REQ_SPI0 54        /* For GD32VF103 */
 
 static struct SPI *SPIx = SPI0;
+#ifndef SPI_BUSY_WAIT
 static struct chx_intr spi_intr;
+#endif
 static int tx_ready;
 static int rx_done;
 
@@ -104,12 +110,15 @@ spi_init (void)
   /* Don't touch CRCPR: Just use reset default value of 7 */
   /* Don't touch I2SCFGR, I2SPR */
 
-  chopstx_claim_irq (&spi_intr, INTR_REQ_SPI0);
-  tx_ready = 0;
-  rx_done = 0;
 
+#ifndef SPI_BUSY_WAIT
+  chopstx_claim_irq (&spi_intr, INTR_REQ_SPI0);
   /* Enable notification for Tx empty, Rx done, or Error */
   SPIx->CR2 = (1 << 7) | (1 << 6) | (1 << 5);
+#endif
+
+  tx_ready = 0;
+  rx_done = 0;
 
   return 0;
 }
@@ -123,6 +132,8 @@ clear_crc_err (void)
 static void
 put_data (uint16_t data)
 {
+  tx_ready = 0;
+  rx_done = 0;
   SPIx->DR = (uint32_t)data;
 }
 
@@ -144,47 +155,40 @@ check_transmit (int for_what)
       uint16_t status;
 
       if (for_what == CHECK_TX && tx_ready)
-        return;
+	return;
 
       if (for_what == CHECK_RX && rx_done)
-        return;
+	return;
 
-      if (for_what == CHECK_TX)
-        SPIx->CR2 |= (1 << 7);
-
-      if (for_what == CHECK_RX)
-        SPIx->CR2 |= (1 << 6);
-
+#ifndef SPI_BUSY_WAIT
       /* Wait an event */
       chopstx_intr_wait (&spi_intr);
+#endif
+
       status = SPIx->SR;
 
       if ((status & (1 << 0)))
-        {
-          rx_done = 1;
-          SPIx->CR2 &= ~(1 << 6);
-        }
+	rx_done = 1;
 
       if ((status & (1 << 1)))
-        {
-          tx_ready = 1;
-          SPIx->CR2 &= ~(1 << 7);
-        }
+	tx_ready = 1;
 
       if ((status & (1 << 4)))
-        {
-          /*FIXME: stat crc_err_count++ */
-          clear_crc_err ();
-        }
+	{
+	  /*FIXME: stat crc_err_count++ */
+	  clear_crc_err ();
+	}
 
 #if 0
       /*FIXME: stat err_count++ */
       if ((status & 0x00fc))
-        {
-        }
+	{
+	}
 #endif
 
+#ifndef SPI_BUSY_WAIT
       chopstx_intr_done (&spi_intr);
+#endif
     }
 }
 
