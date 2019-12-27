@@ -1,6 +1,6 @@
 #define MAIN_SIZE 0x0100 /* Idle+Exception handlers  */
 #define SIZE_0 0x0600 /* Main program             */
-#define SIZE_1 0x0c00 /* first thread program     */
+#define SIZE_1 0x0a00 /* first thread program     */
 #define SIZE_2 0x0600 /* second thread program    */
 #define SIZE_3 0x0000 /* third thread program    */
 #define SIZE_4 0x0000 /* fourth thread program    */

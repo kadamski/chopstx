@@ -33,6 +33,7 @@
 #include <chopstx.h>
 #include <mcu/gd32vf103.h>
 
+#define MCU_GD32VF1
 #include "usb_lld.h"
 
 /*
@@ -404,14 +405,16 @@ static int handle_setup0 (struct usb_dev *dev);
 
 
 void
-usb_lld_stall_tx (int n)
+usb_lld_stall_tx (struct usb_dev *dev, int n)
 {
+  (void)dev;
   gd32vf_ep_stall (n, USB_DIR_IN);
 }
 
 void
-usb_lld_stall_rx (int n)
+usb_lld_stall_rx (struct usb_dev *dev, int n)
 {
+  (void)dev;
   gd32vf_ep_stall (n, USB_DIR_OUT);
 }
 
