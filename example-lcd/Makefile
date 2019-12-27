@@ -16,13 +16,15 @@ LDSCRIPT= sample.ld.gd32vf103
 ### LDSCRIPT= sample.ld.m4
 ### LDSCRIPT= sample.ld
 ### LDSCRIPT= sample.ld.m3
-CSRC = sample.c
+CSRC = sample.c usb-vendor-specific.c
+# CSRC += debug.c
 
 ARCH=riscv32
 CHIP=gd32vf103
 ### CHIP=stm32l4
 ### USE_SYS = yes
 USE_USART = yes
+USE_USB = yes
 
 ###################################
 ### CROSS = arm-none-eabi-
@@ -40,6 +42,7 @@ DEFS  = -DFREE_STANDING -DMHZ=96
 ### DEFS  = -DFREE_STANDING -DUSE_SYS3 -DBUSY_LOOP -DCHX_FLAGS_MAIN=CHOPSTX_SCHED_RR
 OPT   = -O3 -Os -g
 LIBS  =
+#LIBS  = -lgcc
 
 CSRC += $(CHOPSTX)/contrib/spi-st.c
 
