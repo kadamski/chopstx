@@ -1,7 +1,7 @@
 /*
  * chopstx.c - Threads and only threads.
  *
- * Copyright (C) 2013, 2014, 2015, 2016, 2017, 2018, 2019
+ * Copyright (C) 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020
  *               Flying Stone Technology
  * Author: NIIBE Yutaka <gniibe@fsij.org>
  *
@@ -1699,4 +1699,24 @@ chopstx_conf_idle (int enable_sleep)
   chx_spin_unlock (&chx_enable_sleep_lock);
 
   return r;
+}
+
+
+/**
+ * chopstx_critical - Construct a critical section
+ * @func: function to be called
+ * @arg: argument to function
+ *
+ * Run the function @func with @arg under CPU schedule lock.
+ * Return void * pointer.
+ */
+void *
+chopstx_critical (void *func (void *), void *arg)
+{
+  void *p;
+
+  chx_cpu_sched_lock ();
+  p = func (arg);
+  chx_cpu_sched_unlock ();
+  return p;
 }

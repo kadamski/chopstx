@@ -1,3 +1,7 @@
+2020-06-23  NIIBE Yutaka  <gniibe@fsij.org>
+
+	* chopstx.c (chopstx_critical): New.
+
 2019-12-27  NIIBE Yutaka  <gniibe@fsij.org>
 
 	* contrib/spi-st.c (check_transmit, put_data): Fix handling
