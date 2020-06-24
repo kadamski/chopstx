@@ -230,3 +230,10 @@ clock.
 Return previous value of @var{enable_sleep}.
 @end deftypefun
 
+@subheading chopstx_critical
+@anchor{chopstx_critical}
+@deftypefun {void *} {chopstx_critical} (void *func (void * @var{})
+Run the function @var{func} with @var{arg} under CPU schedule lock.
+Return void * pointer.
+@end deftypefun
+
