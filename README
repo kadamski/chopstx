@@ -1,6 +1,6 @@
 Chopstx - Threads and only Threads
-							Version 1.17
-							  2019-11-20
+							 Version 2.0
+							  2020-06-26
 							Niibe Yutaka
 					     Flying Stone Technology
 
@@ -9,7 +9,8 @@ What's Chopstx?
 
 Chopstx is an RT thread library for STM32F103 and GD32F103 (ARM
 Cortex-M3), STM32F030 (ARM Cortex-M0), MKL27Z (ARM Cortex-M0plus),
-STM32L432 (ARM Cortex-M4), and emulation on GNU/Linux.
+STM32L432 (ARM Cortex-M4), GD32V103 (RISC-V Bumblebee) and emulation
+on GNU/Linux.
 
 While most RTOSes come with many features, drivers, and protocol
 stacks, Chopstx just offers a simple RT thread library.
@@ -59,8 +60,6 @@ For STM32 Primer2, see the directory: example-primer2.
 
 Future Works
 ============
-
-RISC-V port (for GD32VF103) is under development.
 
 Convenience function to determine the bottom of thread stack,
 configuration of thread size by compiler's output would be next things
