@@ -2,7 +2,7 @@
  * chopstx-cortex-m.c - Threads and only threads: Arch specific code
  *                      for Cortex-M0/M3/M4
  *
- * Copyright (C) 2013, 2014, 2015, 2016, 2017, 2018, 2019
+ * Copyright (C) 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2021
  *               Flying Stone Technology
  * Author: NIIBE Yutaka <gniibe@fsij.org>
  *
@@ -29,6 +29,9 @@
  */
 
 static struct chx_thread *running;
+#if defined(__ARM_ARCH_6M__)
+static struct chx_thread *preempting __attribute__((used));
+#endif
 
 static struct chx_thread *
 chx_running (void)
@@ -270,6 +273,15 @@ chx_timer_handler (void)
   tp_next = chx_timer_expired ();
   if (tp_next)
     chx_request_preemption ();
+#if defined(__ARM_ARCH_6M__)
+  asm volatile (
+	/* Update preempting.  */
+	"ldr	r1, =preempting\n\t"
+	"str	%0, [r1]\n\t"
+	: /* no output */
+	: "r" (tp_next)
+	: "r1");
+#endif
   return tp_next;
 }
 
@@ -286,6 +298,15 @@ chx_handle_intr (void)
   tp_next = chx_recv_irq (irq_num);
   if (tp_next)
     chx_request_preemption ();
+#if defined(__ARM_ARCH_6M__)
+  asm volatile (
+	/* Update preempting.  */
+	"ldr	r1, =preempting\n\t"
+	"str	%0, [r1]\n\t"
+	: /* no output */
+	: "r" (tp_next)
+	: "r1");
+#endif
   return tp_next;
 }
 
@@ -312,7 +333,7 @@ voluntary_context_switch (struct chx_thread *tp_next)
   register struct chx_thread *tp asm ("r1");
 
   /* Build stack data as if it were an exception entry.
-   * And set the stop top to has RUNNNING.
+   * And set the stack top to have RUNNNING.
    */
   /*
    * r0:  RUNNING               scratch
@@ -480,7 +501,12 @@ preempt (struct chx_thread * tp_next)
 {
   register struct chx_thread *tp_current asm ("r1");
 
-  asm (	"ldr	r2, =running\n\t"
+  asm (
+#if defined(__ARM_ARCH_6M__)
+	"ldr	r2, =preempting\n\t"
+	"ldr	r0, [r2]\n\t"
+#endif
+	"ldr	r2, =running\n\t"
 	"ldr	r1, [r2]"
 	: "=r" (tp_current)
 	: /* no input */

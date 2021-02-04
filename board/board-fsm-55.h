@@ -19,10 +19,13 @@
 
 /*
  * Port A setup.
- * PA5  - ON (LED 1:ON 0:OFF)
  * PA4  - Pull DOWN
+ * PA5  - ON (LED 1:ON 0:OFF)
+ *
+ * PA13 - SWDIO
+ * PA14 - SWCLK
  */
-#define VAL_GPIO_LED_MODER   0x00145555 /* Output Pin0-7, Pin9 and Pin10 */
+#define VAL_GPIO_LED_MODER   0x28145555 /* Output Pin0-7, Pin9 and Pin10 */
 #define VAL_GPIO_LED_OTYPER  0x0000001f /* Open-drain for Pin0-4, Push-Pull*/
 #define VAL_GPIO_LED_OSPEEDR 0x003cffff /* High speed */
 #define VAL_GPIO_LED_PUPDR   0x00000000 /* No pull-up/pull-down */
