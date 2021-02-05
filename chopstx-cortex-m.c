@@ -30,7 +30,7 @@
 
 static struct chx_thread *running;
 #if defined(__ARM_ARCH_6M__)
-static struct chx_thread *preempting __attribute__((used));
+static struct chx_thread *preempting;
 #endif
 
 static struct chx_thread *
@@ -259,11 +259,25 @@ chx_cpu_sched_unlock (void)
 }
 
 
-static void
-chx_request_preemption (void)
+static struct chx_thread *
+chx_request_preemption_possibly (struct chx_thread *tp_next)
 {
+  if (!tp_next)
+    return NULL;
+
+#if defined(__ARM_ARCH_6M__)
+  if (preempting)
+    {
+      chx_ready_push (tp_next);
+      return NULL;
+    }
+  else
+    preempting = tp_next;
+#endif
+
   *ICSR = (1 << 28);
   asm volatile ("" : : : "memory");
+  return tp_next;
 }
 
 struct chx_thread *
@@ -271,18 +285,7 @@ chx_timer_handler (void)
 {
   struct chx_thread *tp_next;
   tp_next = chx_timer_expired ();
-  if (tp_next)
-    chx_request_preemption ();
-#if defined(__ARM_ARCH_6M__)
-  asm volatile (
-	/* Update preempting.  */
-	"ldr	r1, =preempting\n\t"
-	"str	%0, [r1]\n\t"
-	: /* no output */
-	: "r" (tp_next)
-	: "r1");
-#endif
-  return tp_next;
+  return chx_request_preemption_possibly (tp_next);
 }
 
 struct chx_thread *
@@ -296,18 +299,7 @@ chx_handle_intr (void)
 		: "=r" (irq_num) : /* no input */ : "memory");
 
   tp_next = chx_recv_irq (irq_num);
-  if (tp_next)
-    chx_request_preemption ();
-#if defined(__ARM_ARCH_6M__)
-  asm volatile (
-	/* Update preempting.  */
-	"ldr	r1, =preempting\n\t"
-	"str	%0, [r1]\n\t"
-	: /* no output */
-	: "r" (tp_next)
-	: "r1");
-#endif
-  return tp_next;
+  return chx_request_preemption_possibly (tp_next);
 }
 
 static void
@@ -326,8 +318,8 @@ voluntary_context_switch (struct chx_thread *tp_next)
 #if defined(__ARM_ARCH_7M__) || defined(__ARM_ARCH_7EM__)
   asm volatile (
 	"svc	#0\n\t"
-        "add	r1, r0, #16\n\t"
-        "ldr	r0, [r1]"       /* Get tp->v */
+	"add	r1, r0, #16\n\t"
+	"ldr	r0, [r1]"	/* Get tp->v */
 	: "=r" (result) : "0" (tp_next): "memory");
 #else
   register struct chx_thread *tp asm ("r1");
@@ -503,8 +495,10 @@ preempt (struct chx_thread * tp_next)
 
   asm (
 #if defined(__ARM_ARCH_6M__)
+	"mov	r1, #0\n\t"
 	"ldr	r2, =preempting\n\t"
 	"ldr	r0, [r2]\n\t"
+	"str	r1, [r2]\n\t"
 #endif
 	"ldr	r2, =running\n\t"
 	"ldr	r1, [r2]"

@@ -1,3 +1,9 @@
+2021-02-05  NIIBE Yutaka  <gniibe@fsij.org>
+
+	* chopstx-cortex-m.c (chx_request_preemption_possibly): New.
+	(chx_timer_handler, chx_handle_intr): Use the new function.
+	[__ARM_ARCH_6M__] (preempt): Clear PREEMPTING.
+
 2021-02-04  NIIBE Yutaka  <gniibe@fsij.org>
 
 	* chopstx-cortex-m.c [__ARM_ARCH_6M__] (preempting): New value to
