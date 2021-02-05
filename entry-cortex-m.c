@@ -65,22 +65,8 @@ extern uint8_t __main_stack_end__;
 extern void svc (void);
 #endif
 
-/*
- * In ARMv6-M Architecture Reference Manual and ARM v7-M Architecture
- * Reference Manual, you can find a section B1.5.12 for tail-chaining.
- *
- * B1.5.12 Exceptions on exception return, and tail-chaining exceptions
- */
-/*
- * Because it is tail-chained, the preempt function has an argument
- * with type of (struct chx_thread *), in fact.
- */
 extern void preempt (void);
 
-/*
- * Following functions return type of (struct chx_thread *) for
- * tail-chained function (the preempt function), for its argument.
- */
 extern void chx_timer_handler (void);
 extern void chx_handle_intr (void);
 

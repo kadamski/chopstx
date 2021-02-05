@@ -257,34 +257,31 @@ chx_cpu_sched_unlock (void)
 }
 
 
-static struct chx_thread *
+static void
 chx_request_preemption_possibly (struct chx_thread *tp_next)
 {
   if (!tp_next)
-    return NULL;
+    return;
 
   if (preempting)
-    {
-      chx_ready_push (tp_next);
-      return NULL;
-    }
+    chx_ready_push (tp_next);
   else
-    preempting = tp_next;
-
-  *ICSR = (1 << 28);
-  asm volatile ("" : : : "memory");
-  return tp_next;
+    {
+      preempting = tp_next;
+      *ICSR = (1 << 28);
+      asm volatile ("" : : : "memory");
+    }
 }
 
-struct chx_thread *
+void
 chx_timer_handler (void)
 {
   struct chx_thread *tp_next;
   tp_next = chx_timer_expired ();
-  return chx_request_preemption_possibly (tp_next);
+  chx_request_preemption_possibly (tp_next);
 }
 
-struct chx_thread *
+void
 chx_handle_intr (void)
 {
   register uint32_t irq_num;
@@ -295,7 +292,7 @@ chx_handle_intr (void)
 		: "=r" (irq_num) : /* no input */ : "memory");
 
   tp_next = chx_recv_irq (irq_num);
-  return chx_request_preemption_possibly (tp_next);
+  chx_request_preemption_possibly (tp_next);
 }
 
 static void
@@ -485,20 +482,19 @@ chopstx_create_arch (uintptr_t stack_addr, size_t stack_size,
  */
 
 void __attribute__ ((naked))
-preempt (struct chx_thread * tp_next)
+preempt (void)
 {
+  register struct chx_thread *tp_next asm ("r0");
   register struct chx_thread *tp_current asm ("r1");
 
   asm (
 	"mov	r1, #0\n\t"
 	"ldr	r2, =preempting\n\t"
-#if defined(__ARM_ARCH_6M__)
 	"ldr	r0, [r2]\n\t"
-#endif
 	"str	r1, [r2]\n\t"
 	"ldr	r2, =running\n\t"
 	"ldr	r1, [r2]"
-	: "=r" (tp_current)
+	: "=r" (tp_next), "=r" (tp_current)
 	: /* no input */
 	: "r2");
 
@@ -558,7 +554,7 @@ preempt (struct chx_thread * tp_next)
 #endif
 	"mov	r0, #0\n\t"
 	"sub	r0, #3\n\t" /* EXC_RETURN to a thread with PSP */
-	"bx	r0\n"
+	"bx	r0"
 	: /* no output */ : "r" (tp_next) : "memory");
 }
 
