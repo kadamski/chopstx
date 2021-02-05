@@ -1,15 +1,13 @@
 2021-02-05  NIIBE Yutaka  <gniibe@fsij.org>
 
-	* chopstx-cortex-m.c (chx_request_preemption_possibly): New.
+	* chopstx-cortex-m.c (preempting): New value to hold the pointer
+	to preempting thread, which will become RUNNING.
+	(chx_request_preemption_possibly): New.
 	(chx_timer_handler, chx_handle_intr): Use the new function.
-	[__ARM_ARCH_6M__] (preempt): Clear PREEMPTING.
+	(preempt): Recover R0 from PREEMPTING and clear PREEMPTING.
+	(svc): Don't share return path with preempt.
 
 2021-02-04  NIIBE Yutaka  <gniibe@fsij.org>
-
-	* chopstx-cortex-m.c [__ARM_ARCH_6M__] (preempting): New value to
-	hold the pointer to preempting thread, which will become RUNNING.
-	(chx_timer_handler, chx_handle_intr): Save tp_next to PREEMPTING.
-	(preempt): Recover R0 from PREEMPTING.
 
 	* board/board-fsm-55.h (VAL_GPIO_LED_MODER): Support SWD
 	debugging.
