@@ -29,9 +29,7 @@
  */
 
 static struct chx_thread *running;
-#if defined(__ARM_ARCH_6M__)
 static struct chx_thread *preempting;
-#endif
 
 static struct chx_thread *
 chx_running (void)
@@ -265,7 +263,6 @@ chx_request_preemption_possibly (struct chx_thread *tp_next)
   if (!tp_next)
     return NULL;
 
-#if defined(__ARM_ARCH_6M__)
   if (preempting)
     {
       chx_ready_push (tp_next);
@@ -273,7 +270,6 @@ chx_request_preemption_possibly (struct chx_thread *tp_next)
     }
   else
     preempting = tp_next;
-#endif
 
   *ICSR = (1 << 28);
   asm volatile ("" : : : "memory");
@@ -494,12 +490,12 @@ preempt (struct chx_thread * tp_next)
   register struct chx_thread *tp_current asm ("r1");
 
   asm (
-#if defined(__ARM_ARCH_6M__)
 	"mov	r1, #0\n\t"
 	"ldr	r2, =preempting\n\t"
+#if defined(__ARM_ARCH_6M__)
 	"ldr	r0, [r2]\n\t"
-	"str	r1, [r2]\n\t"
 #endif
+	"str	r1, [r2]\n\t"
 	"ldr	r2, =running\n\t"
 	"ldr	r1, [r2]"
 	: "=r" (tp_current)
