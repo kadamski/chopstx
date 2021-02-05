@@ -320,7 +320,7 @@ voluntary_context_switch (struct chx_thread *tp_next)
 	"svc	#0\n\t"
 	"add	r1, r0, #16\n\t"
 	"ldr	r0, [r1]"	/* Get tp->v */
-	: "=r" (result) : "0" (tp_next): "memory");
+	: "=r" (result) : "0" (tp_next): "r1", "memory");
 #else
   register struct chx_thread *tp asm ("r1");
 
@@ -448,7 +448,7 @@ voluntary_context_switch (struct chx_thread *tp_next)
 		: "0" (tp_next)
 		: "memory");
 #endif
-  return (uintptr_t)result;
+  return result;
 }
 
 extern void cause_link_time_error_unexpected_size_of_struct_chx_thread (void);
@@ -536,18 +536,11 @@ preempt (struct chx_thread * tp_next)
   /* Registers on stack (PSP): r0, r1, r2, r3, r12, lr, pc, xpsr */
 
   asm volatile (
-    ".L_CONTEXT_SWITCH:\n\t"
 	/* Now, r0 points to the thread to be switched.  */
 	/* Put it to *running.  */
 	"ldr	r1, =running\n\t"
 	/* Update running.  */
 	"str	r0, [r1]\n\t"
-#if defined(__ARM_ARCH_6M__)
-	"cmp	r0, #0\n\t"
-	"beq	1f\n\t"
-#else
-	"cbz	r0, 1f\n\t"
-#endif
 	/**/
 	"add	r0, #20\n\t"
 	"ldm	r0!, {r4, r5, r6, r7}\n\t"
@@ -568,39 +561,8 @@ preempt (struct chx_thread * tp_next)
 	"msr	PSP, r1\n\t"
 #endif
 	"mov	r0, #0\n\t"
-	/* Unmask interrupts.  */
-#if defined(__ARM_ARCH_6M__)
-	"cpsie	i\n\t"
-#else
-	"msr	BASEPRI, r0\n\t"
-#endif
-	/**/
 	"sub	r0, #3\n\t" /* EXC_RETURN to a thread with PSP */
 	"bx	r0\n"
-    "1:\n\t"
-	/* Spawn an IDLE thread.  */
-	"ldr	r0, =__main_stack_end__-32\n\t"
-	"msr	PSP, r0\n\t"
-	"mov	r1, #0\n\t"
-	"mov	r2, #0\n\t"
-	"mov	r3, #0\n\t"
-	"stm	r0!, {r1, r2, r3}\n\t"
-	"stm	r0!, {r1, r2, r3}\n\t"
-	"ldr	r1, =chx_idle\n\t" /* PC = idle */
-	"mov	r2, #0x010\n\t"
-	"lsl	r2, r2, #20\n\t" /* xPSR = T-flag set (Thumb) */
-	"stm	r0!, {r1, r2}\n\t"
-	/**/
-	/* Unmask interrupts.  */
-	"mov	r0, #0\n\t"
-#if defined(__ARM_ARCH_6M__)
-	"cpsie	i\n\t"
-#else
-	"msr	BASEPRI, r0\n"
-#endif
-	/**/
-	"sub	r0, #3\n\t" /* EXC_RETURN to a thread with PSP */
-	"bx	r0"
 	: /* no output */ : "r" (tp_next) : "memory");
 }
 
@@ -632,7 +594,44 @@ svc (void)
        : "r1", "r2", "r3", "r4", "r5", "r6", "memory");
 
   asm volatile (
-	"b	.L_CONTEXT_SWITCH"
+	/* Now, r0 points to the thread to be switched.  */
+	/* Put it to *running.  */
+	"ldr	r1, =running\n\t"
+	/* Update running.  */
+	"str	r0, [r1]\n\t"
+	"cbz	r0, 1f\n\t"
+	/**/
+	"add	r0, #20\n\t"
+	"ldm	r0!, {r4, r5, r6, r7}\n\t"
+	"ldr	r8, [r0], #4\n\t"
+	"ldr	r9, [r0], #4\n\t"
+	"ldr	r10, [r0], #4\n\t"
+	"ldr	r11, [r0], #4\n\t"
+	"ldr	r1, [r0], #4\n\t"
+	"msr	PSP, r1\n\t"
+	/* Unmask interrupts.  */
+	"mov	r0, #0\n\t"
+	"msr	BASEPRI, r0\n\t"
+	"sub	r0, #3\n\t" /* EXC_RETURN to a thread with PSP */
+	"bx	r0\n"
+    "1:\n\t"
+	/* Spawn an IDLE thread.  */
+	"ldr	r0, =__main_stack_end__-32\n\t"
+	"msr	PSP, r0\n\t"
+	"mov	r1, #0\n\t"
+	"mov	r2, #0\n\t"
+	"mov	r3, #0\n\t"
+	"stm	r0!, {r1, r2, r3}\n\t"
+	"stm	r0!, {r1, r2, r3}\n\t"
+	"ldr	r1, =chx_idle\n\t" /* PC = idle */
+	"mov	r2, #0x010\n\t"
+	"lsl	r2, r2, #20\n\t" /* xPSR = T-flag set (Thumb) */
+	"stm	r0!, {r1, r2}\n\t"
+	/* Unmask interrupts.  */
+	"mov	r0, #0\n\t"
+	"msr	BASEPRI, r0\n"
+	"sub	r0, #3\n\t" /* EXC_RETURN to a thread with PSP */
+	"bx	r0"
 	: /* no output */ : "r" (tp_next) : "memory");
 }
 #endif
