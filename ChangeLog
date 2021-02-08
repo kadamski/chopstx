@@ -1,3 +1,18 @@
+2021-02-08  NIIBE Yutaka  <gniibe@fsij.org>
+
+	* entry-cortex-m.c (vector_table): No use of PENDV exception.
+	Use chx_handle_intr for SysTick.
+	* example-fsm-55/reset.c (vector): Likewise.
+
+	* chopstx-cortex-m.c (preempting): Remove.
+	(CPU_EXCEPTION_PRIORITY_PENDSV): Remove.
+	(chx_interrupt_controller_init): No setup for PENDV.
+	(chx_request_preemption_possibly): Remove.
+	(involuntary_context_switch): New.
+	(chx_timer_handler): Remove.
+	(chx_handle_intr): Use involuntary_context_switch directly.
+	(preempt): Remove.
+
 2021-02-05  NIIBE Yutaka  <gniibe@fsij.org>
 
 	* chopstx-cortex-m.c (preempting): New value to hold the pointer

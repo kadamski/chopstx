@@ -31,8 +31,6 @@ reset (void)
 }
 
 extern uint8_t __main_stack_end__;
-extern void preempt (void);
-extern void chx_timer_handler (void);
 extern void chx_handle_intr (void);
 
 static void nmi (void)
@@ -84,8 +82,8 @@ handler vector[] __attribute__ ((section(".vectors"))) = {
   none,				/* SVCall */
   none,				/* Debug */
   none,				/* reserved */
-  preempt,			/* PendSV */
-  chx_timer_handler,		/* SysTick */
+  none,				/* PendSV */
+  chx_handle_intr,		/* SysTick */
   /* 0x40 */
   chx_handle_intr /* WWDG */,     chx_handle_intr /* PVD */,
   chx_handle_intr /* TAMPER */,   chx_handle_intr /* RTC */,
