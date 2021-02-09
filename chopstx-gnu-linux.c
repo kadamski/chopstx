@@ -2,7 +2,7 @@
  * chopstx-gnu-linux.c - Threads and only threads: Arch specific code
  *                       for GNU/Linux emulation
  *
- * Copyright (C) 2017, 2018, 2019 Flying Stone Technology
+ * Copyright (C) 2017, 2018, 2019, 2021 Flying Stone Technology
  * Author: NIIBE Yutaka <gniibe@fsij.org>
  *
  * This file is a part of Chopstx, a thread library for embedded.
@@ -260,14 +260,23 @@ preempted_context_switch (struct chx_thread *tp_next)
 static uintptr_t
 voluntary_context_switch (struct chx_thread *tp_next)
 {
-  struct chx_thread *tp, *tp_prev;
-
-  if (!tp_next)
-    tp_next = chx_idle ();
+  struct chx_thread *tp;
+  struct chx_thread *tp_prev;
 
   tp_prev = chx_running ();
-  chx_set_running (tp_next);
-  swapcontext (&tp_prev->tc, &tp_next->tc);
+  if (!tp_next)
+    {
+      chx_set_running (NULL);
+      tp_next = chx_idle ();
+      chx_set_running (tp_next);
+      if (tp_prev != tp_next)
+        swapcontext (&tp_prev->tc, &tp_next->tc);
+    }
+  else
+    {
+      chx_set_running (tp_next);
+      swapcontext (&tp_prev->tc, &tp_next->tc);
+    }
   chx_cpu_sched_unlock ();
 
   tp = chx_running ();
