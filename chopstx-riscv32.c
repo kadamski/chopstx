@@ -2,7 +2,7 @@
  * chopstx-riscv32.c - Threads and only threads: Arch specific code
  *                     for RISC-V 32 IMAC (Bumblebee core)
  *
- * Copyright (C) 2019
+ * Copyright (C) 2019, 2021
  *               Flying Stone Technology
  * Author: NIIBE Yutaka <gniibe@fsij.org>
  *
@@ -514,7 +514,7 @@ voluntary_context_switch (struct chx_thread *tp_next)
 	 */
 	"# Call the IDLE function, interrupt masked.\n\t"
 	"mv	tp,zero\n\t"
-	"csrw	mscratch,tp\n\t"
+	"csrw	mscratch,tp\n\t" /* chx_set_running */
 	"la	sp,__main_stack_end__\n\t"
 	"call	chx_idle\n"
     ".L_V_CONTEXT_SWITCH_BEGIN:\n"
@@ -523,7 +523,7 @@ voluntary_context_switch (struct chx_thread *tp_next)
 	"mv	sp,%0\n\t"
 	RESTORE_CALLEE_SAVE_REGISTERS
 	/**/
-	"csrw	mscratch,sp\n\t"
+	"csrw	mscratch,sp\n\t" /* chx_set_running */
 	"lw	a0,0(sp)\n\t"
 	"beqz	a0,1f\n"
     ".L_RETURN_TO_PREEMPTED_THREAD:\n\t"
@@ -667,7 +667,7 @@ chx_handle_intr (void)
 	"mv	sp,%0\n\t"
 	RESTORE_CALLEE_SAVE_REGISTERS
 	/**/
-	"csrw	mscratch,sp\n\t"
+	"csrw	mscratch,sp\n\t" /* chx_set_running */
 	"lw	a0,0(sp)\n\t"
 	"bnez	a0,.L_RETURN_TO_PREEMPTED_THREAD\n\t"
 	/**/

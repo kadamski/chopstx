@@ -298,7 +298,7 @@ involuntary_context_switch (struct chx_thread *tp_next)
 	/* Now, r0 points to the thread to be switched.  */
 	/* Put it to *running.  */
 	"ldr	r1, =running\n\t"
-	/* Update running.  */
+	/* Update running: chx_set_running */
 	"str	r0, [r1]\n\t"
 	/**/
 	"add	r0, #20\n\t"
@@ -568,7 +568,7 @@ svc (void)
 	/* Now, r0 points to the thread to be switched.  */
 	/* Put it to *running.  */
 	"ldr	r1, =running\n\t"
-	/* Update running.  */
+	/* Update running: chx_set_running */
 	"str	r0, [r1]\n\t"
 	"cbz	r0, 1f\n\t"
 	/**/
