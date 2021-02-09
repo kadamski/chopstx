@@ -1,5 +1,7 @@
 2021-02-09  NIIBE Yutaka  <gniibe@fsij.org>
 
+	* chopstx-gnu-linux.c (chopstx_create_arch): Clear TP.
+
 	* example-cdc-gnu-linux/sample.c (main): Handle timeout by canceling
 	input.
 
