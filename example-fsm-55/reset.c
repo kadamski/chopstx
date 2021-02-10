@@ -1,7 +1,7 @@
 /*
  * reset.c - No system routines, but only RESET handler for STM32F030.
  *
- * Copyright (C) 2015 Flying Stone Technology
+ * Copyright (C) 2015, 2021 Flying Stone Technology
  * Author: NIIBE Yutaka <gniibe@fsij.org>
  *
  * Copying and distribution of this file, with or without modification,
