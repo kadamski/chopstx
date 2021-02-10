@@ -27,6 +27,16 @@
  *
  */
 
+/*
+ * NOTE: This code is not portable.  It's intended for GNU/Linux.
+ *
+ * This implementation depends on the feature of SA_SIGINFO of Linux,
+ * which signal handler takes three arguments.  Also, it depends on
+ * GNU C library for how to use the makecontext function on 64-bit
+ * machine.
+ *
+ */
+
 #include <unistd.h>
 #include <ucontext.h>
 #include <signal.h>
@@ -314,18 +324,15 @@ chopstx_create_arch (uintptr_t stack_addr, size_t stack_size,
   tp->tc.uc_link = NULL;
 
   /*
-   * makecontext is hard to use, actually.
-   *
-   * On 32-bit machine, it is not accurate to specify ARGC = 4, because
-   * it's actually two, but it works.
+   * makecontext is hard to use in a portable way, actually.
    *
    * On 64-bit machine, according to the standard, it should be coded
-   * to specify (int == 32-bit) arguments that follow ARGC, so it is
-   * incorrect to specify ARGC=4 and two 64-bit arguments, but it
-   * works (on x86-64).
+   * to specify int (== 32-bit for LP64 machine) arguments that follow
+   * ARGC, so it is not that correct to specify two 64-bit arguments
+   * here.  However, GNU C library allows this.
    */
   makecontext (&tp->tc, (void (*)(void))chx_thread_start,
-	       4, thread_entry, arg);
+	       2, thread_entry, arg);
   chx_cpu_sched_unlock ();
   return tp;
 }
