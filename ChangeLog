@@ -1,3 +1,10 @@
+2021-02-10  NIIBE Yutaka  <gniibe@fsij.org>
+
+	* chopstx.c (chx_recv_irq): Bug fix when no waiter.
+
+	* chopstx-gnu-linux.c (chopstx_create_arch): Fix ARGC of
+	makecontext call.
+
 2021-02-09  NIIBE Yutaka  <gniibe@fsij.org>
 
 	* chopstx-gnu-linux.c (chopstx_create_arch): Clear TP.
@@ -9,8 +16,6 @@
 	when chx_idle suggests no context switch (tp_prev == tp_next).
 
 2021-02-08  NIIBE Yutaka  <gniibe@fsij.org>
-
-	* chopstx.c (chx_recv_irq): Bug fix when no waiter.
 
 	* entry-cortex-m.c (vector_table): No use of PENDV exception.
 	Use chx_handle_intr for SysTick.

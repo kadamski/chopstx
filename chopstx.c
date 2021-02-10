@@ -460,7 +460,7 @@ chx_recv_irq (uint32_t irq_num)
       break;
   chx_spin_unlock (&q_intr.lock);
 
-  if (!ll_empty ((struct chx_qh *)p))
+  if (p != (struct chx_pq *)&q_intr.q)
     {
       struct chx_px *px = (struct chx_px *)p;
 
