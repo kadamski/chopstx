@@ -174,7 +174,13 @@ chx_idle (void)
       if (sig == SIGALRM)
 	tp_next = chx_timer_expired ();
       else
-	tp_next = chx_recv_irq (sig);
+	{
+	  tp_next = chx_recv_irq (sig);
+          /* Exit when there is no waiter and it's INT or TERM.  */
+	  if (tp_next == NULL
+	      && (sig == SIGINT || sig == SIGTERM))
+	    exit (1);
+	}
     }
 
   return tp_next;
@@ -280,7 +286,7 @@ voluntary_context_switch (struct chx_thread *tp_next)
       tp_next = chx_idle ();
       chx_set_running (tp_next);
       if (tp_prev != tp_next)
-        swapcontext (&tp_prev->tc, &tp_next->tc);
+	swapcontext (&tp_prev->tc, &tp_next->tc);
     }
   else
     {
