@@ -1,5 +1,7 @@
 2021-02-10  NIIBE Yutaka  <gniibe@fsij.org>
 
+	* example-cdc-gnu-linux/usb-cdc.c (tty_recv): Cancel the input.
+
 	* chopstx.c (chx_recv_irq): Bug fix when no waiter.
 
 	* chopstx-gnu-linux.c (chopstx_create_arch): Fix ARGC of

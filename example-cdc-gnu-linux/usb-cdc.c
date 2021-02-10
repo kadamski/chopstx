@@ -905,7 +905,17 @@ tty_recv (struct tty *t, char *buf, uint32_t *timeout)
       r = check_rx (t);
       chopstx_mutex_unlock (&t->mtx);
       if (r || (timeout != NULL && *timeout == 0))
-	break;
+	{
+	  /* Cancel the input.	*/
+	  for (i = 0; i < t->inputline_len; i++)
+	    {
+	      tty_echo_char (t, 0x08);
+	      tty_echo_char (t, 0x20);
+	      tty_echo_char (t, 0x08);
+	    }
+	  t->inputline_len = 0;
+	  break;
+	}
     }
 
   chopstx_mutex_lock (&t->mtx);

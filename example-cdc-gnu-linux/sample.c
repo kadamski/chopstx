@@ -180,12 +180,12 @@ main (int argc, const char *argv[])
 		goto connection_loop;
 
 	      if (size == 0)
-                /* Timeout */
-                {
-                  if (tty_send (tty, "\r\n", 2) < 0)
-                    return 0;
-                  break;
-                }
+		/* Timeout */
+		{
+		  if (tty_send (tty, "\r\n", 2) < 0)
+		    return 0;
+		  break;
+		}
 	      else if (size == 1)
 		/* Do nothing but prompt again.  */
 		break;

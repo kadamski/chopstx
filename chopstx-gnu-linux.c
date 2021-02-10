@@ -176,7 +176,7 @@ chx_idle (void)
       else
 	{
 	  tp_next = chx_recv_irq (sig);
-          /* Exit when there is no waiter and it's INT or TERM.  */
+	  /* Exit when there is no waiter and it's INT or TERM.	 */
 	  if (tp_next == NULL
 	      && (sig == SIGINT || sig == SIGTERM))
 	    exit (1);
