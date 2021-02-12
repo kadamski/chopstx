@@ -1,3 +1,7 @@
+2021-02-12  NIIBE Yutaka  <gniibe@fsij.org>
+
+	* chopstx-gnu-linux.c (chopstx_create_arch): Clear TP.
+
 2019-12-30  NIIBE Yutaka  <gniibe@fsij.org>
 
 	* VERSION: 1.18.

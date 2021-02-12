@@ -2,7 +2,7 @@
  * chopstx-gnu-linux.c - Threads and only threads: Arch specific code
  *                       for GNU/Linux emulation
  *
- * Copyright (C) 2017, 2018, 2019 Flying Stone Technology
+ * Copyright (C) 2017, 2018, 2019, 2021 Flying Stone Technology
  * Author: NIIBE Yutaka <gniibe@fsij.org>
  *
  * This file is a part of Chopstx, a thread library for embedded.
@@ -349,6 +349,7 @@ chopstx_create_arch (uintptr_t stack_addr, size_t stack_size,
    * signal blocked.  The sigmask will be cleared in chx_thread_start.
    */
   chx_cpu_sched_lock ();
+  memset (tp, 0, sizeof (struct chx_thread));
   getcontext (&tp->tc);
   tp->tc.uc_stack.ss_sp = (void *)stack_addr;
   tp->tc.uc_stack.ss_size = stack_size;
