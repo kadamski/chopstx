@@ -1,7 +1,7 @@
 \input texinfo                      @c -*-texinfo-*-
 @c %**start of header
 @setfilename chopstx.info
-@set VERSION 2.0
+@set VERSION 2.1
 @settitle Chopstx Reference Manual
 @c Unify some of the indices.
 @syncodeindex tp fn
@@ -11,7 +11,7 @@
 This manual is for Chopstx (version @value{VERSION}).
 
 @noindent
-Copyright @copyright{} 2013, 2015, 2016, 2017, 2018, 2019, 2020 Flying Stone Technology @*
+Copyright @copyright{} 2013, 2015, 2016, 2017, 2018, 2019, 2020, 2021 Flying Stone Technology @*
 
 @quotation
 Permission is granted to copy, distribute and/or modify this document
@@ -91,7 +91,7 @@ Indexes
 Chopstx is an RT thread library for ARM Cortex-M0, Cortex-M0plus,
 Cortex-M3, Cortex-M4 with no FPU or DSP, RISC-V Bumblebee, and
 GNU/Linux emulation.  Specifically, it is used for STM32F030, MKL27Z,
-STM32F103, GD32F103, STM32L432, GD32V103 and as a command on
+STM32F103, GD32F103, STM32L432, GD32VF103 and as a command on
 GNU/Linux.
 
 While most RTOSes come with many features, drivers, and stacks,
@@ -126,7 +126,7 @@ done by interrupt handler, bottom half, and thead is crucial for
 applications' performance.  And because the demarcation should be done
 at an early stage of an application development, it has a tendency,
 many parts are getting demanding higher priority.  Amount of code for
-higher priority interrupt hander is getting bigger and bigger, while
+higher priority interrupt handler is getting bigger and bigger, while
 losing performance.
 
 On the other hand, ``Threads (and only Threads)'' programming style
@@ -239,7 +239,7 @@ chx_handle_intr entries.
 Obviously, this is suboptimal.  It kills the hardware effort to
 decrease interrupt latency.
 
-I is certainly possible to support configurable vector table and/or
+It is certainly possible to support configurable vector table and/or
 better dispatch.
 
 The reason why I keep this badness is that I believe that when

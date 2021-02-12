@@ -1,6 +1,31 @@
 NEWS - Noteworthy changes
 
 
+* Major changes in Chopstx 2.1
+
+  Released 2021-02-12
+
+** GNU/Linux emulation change
+The process can be asked to exit by SIGINT or SIGTERM.
+
+** Bug fix for interrupt handling
+The check to find waiting thread was wrong.  If no waiting thread,
+it failed.
+
+** Bug fix for GNU/Linux emulation
+In 2.0, GNU/Linux emulation doesn't work well with chx_idle when it
+handles interrupt synchronously and the waken thread is the same one
+which called chx_idle.
+
+** Bug fix for Cortex-M0/Cortex-M3 Support
+In 2.0, Cortex-M0 with no tail-chaining support (e.g. STM32F030)
+doesn't work.  In 2.0, Cortex-M3/M4 may fail when two or more
+interrupts occur simultaneously; A waken thread (which is about to
+preempt RUNNING) by the first interrupt may be lost (and never
+scheduled again), by the second interrupt handling before the call of
+preempt function.
+
+
 * Major changes in Chopstx 2.0
 
   Released 2020-06-26

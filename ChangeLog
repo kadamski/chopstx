@@ -1,3 +1,8 @@
+2021-02-12  NIIBE Yutaka  <gniibe@fsij.org>
+
+	* VERSION: 2.1
+	* doc/chopstx.texi (VERSION): 2.1.
+
 2021-02-10  NIIBE Yutaka  <gniibe@fsij.org>
 
 	* example-cdc-gnu-linux/usb-cdc.c (tty_recv): Cancel the input.
