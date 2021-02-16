@@ -1,3 +1,7 @@
+2021-02-16  NIIBE Yutaka  <gniibe@fsij.org>
+
+	* contrib/ackbtn-gnu-linux.c: New.
+
 2021-02-12  NIIBE Yutaka  <gniibe@fsij.org>
 
 	* VERSION: 2.1
