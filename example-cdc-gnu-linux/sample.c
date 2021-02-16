@@ -179,7 +179,14 @@ main (int argc, const char *argv[])
 	      if (size < 0)
 		goto connection_loop;
 
-	      if (size == 1)
+	      if (size == 0)
+		/* Timeout */
+		{
+		  if (tty_send (tty, "\r\n", 2) < 0)
+		    return 0;
+		  break;
+		}
+	      else if (size == 1)
 		/* Do nothing but prompt again.  */
 		break;
 	      else if (size)

@@ -1,6 +1,10 @@
 2021-02-12  NIIBE Yutaka  <gniibe@fsij.org>
 
+	Backport from 2.1.
 	* chopstx-gnu-linux.c (chopstx_create_arch): Clear TP.
+	* example-cdc-gnu-linux/usb-cdc.c (tty_recv): Cancel the input.
+	* example-cdc-gnu-linux/sample.c (main): Handle timeout by canceling
+	input.
 
 2019-12-30  NIIBE Yutaka  <gniibe@fsij.org>
 

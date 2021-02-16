@@ -904,8 +904,18 @@ tty_recv (struct tty *t, char *buf, uint32_t *timeout)
       chopstx_mutex_lock (&t->mtx);
       r = check_rx (t);
       chopstx_mutex_unlock (&t->mtx);
-      if (r || (timeout != NULL && *timeout == 0))
+      if (r)
 	break;
+      else if (timeout != NULL && *timeout == 0)
+	{
+	  int i;
+
+	  /* Cancel the input.	*/
+	  for (i = 0; i < t->inputline_len; i++)
+	    tty_send (t, "\x08\x20\x08", 3);
+	  t->inputline_len = 0;
+	  break;
+	}
     }
 
   chopstx_mutex_lock (&t->mtx);
