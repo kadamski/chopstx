@@ -3,6 +3,7 @@
 	Backport from master.
 	* contrib/ackbtn-gnu-linux.c: New.
 	* mcu/usb-usbip.c (usbip_run_server): Add start-up message.
+	* contrib/adc-gnu-linux.c (adc_start_conversion): Use getrandom.
 
 2021-02-12  NIIBE Yutaka  <gniibe@fsij.org>
 

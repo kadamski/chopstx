@@ -3,7 +3,7 @@
  *                   This ADC driver just fills pseudo random values.
  *                   It's completely useless other than for NeuG.
  *
- * Copyright (C) 2017  Free Software Initiative of Japan
+ * Copyright (C) 2017, 2021  Free Software Initiative of Japan
  * Author: NIIBE Yutaka <gniibe@fsij.org>
  *
  * This file is a part of Chopstx, a thread library for embedded.
@@ -33,7 +33,7 @@
 #include <chopstx.h>
 #include "adc.h"
 
-#define ADC_RANDOM_SEED 0x01034649 /* "Hello, father!" in Japanese */
+#include <sys/random.h>
 
 /*
  * Do calibration for ADC.
@@ -41,7 +41,6 @@
 int
 adc_init (void)
 {
-  srandom (ADC_RANDOM_SEED);
   return 0;
 }
 
@@ -55,8 +54,7 @@ uint32_t adc_buf[64];
 void
 adc_start_conversion (int offset, int count)
 {
-  while (count--)
-    adc_buf[offset++] = random ();
+  getrandom (adc_buf+offset, count, 0);
 }
 
 
