@@ -1,5 +1,7 @@
 2021-02-17  NIIBE Yutaka  <gniibe@fsij.org>
 
+	* contrib/adc-gnu-linux.c (adc_start_conversion): Use getrandom.
+
 	* mcu/usb-usbip.c (usbip_run_server): Add start-up message.
 
 2021-02-16  NIIBE Yutaka  <gniibe@fsij.org>
