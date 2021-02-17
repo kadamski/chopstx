@@ -1,3 +1,9 @@
+2021-02-17  NIIBE Yutaka  <gniibe@fsij.org>
+
+	Backport from master.
+	* contrib/ackbtn-gnu-linux.c: New.
+	* mcu/usb-usbip.c (usbip_run_server): Add start-up message.
+
 2021-02-12  NIIBE Yutaka  <gniibe@fsij.org>
 
 	Backport from 2.1.
