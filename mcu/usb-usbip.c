@@ -1,7 +1,7 @@
 /*
  * usb-usbip.c - USB Device Emulation (server side) by USBIP
  *
- * Copyright (C) 2017, 2018  g10 Code GmbH
+ * Copyright (C) 2017, 2018, 2021  g10 Code GmbH
  * Author: NIIBE Yutaka <gniibe@fsij.org>
  *
  * This file is a part of Chopstx, a thread library for embedded.
@@ -1079,6 +1079,11 @@ usbip_run_server (void *arg)
       perror ("listen");
       exit (1);
     }
+
+  fputs ("USBIP thread started.\n", stdout);
+  fputs ("You can use this by attaching following commands:\n", stdout);
+  fputs ("    # modprobe vhci_hcd\n", stdout);
+  fputs ("    # usbip attach -r 127.0.0.1 -b 1-1\n", stdout);
 
   pollfds[1].fd = shutdown_notify_fd;
   pollfds[1].events = POLLIN;
