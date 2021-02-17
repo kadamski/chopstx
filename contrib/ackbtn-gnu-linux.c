@@ -79,8 +79,6 @@ user_interaction (void *arg)
   pollfds[1].fd = event_fd;
   pollfds[1].events = POLLIN;
 
-  fputs ("User interaction for AckBtn started.\n", stdout);
-
   while (1)
     {
       unsigned int acked_or_timeout = 0;
@@ -90,6 +88,8 @@ user_interaction (void *arg)
       while (!enabled)
 	pthread_cond_wait (&cond, &mutex);
       pthread_mutex_unlock (&mutex);
+
+      fputs ("User interaction for AckBtn started.\n", stdout);
 
       /* Consume all input if any.  */
       while (1)
