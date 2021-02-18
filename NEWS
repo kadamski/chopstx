@@ -1,6 +1,26 @@
 NEWS - Noteworthy changes
 
 
+* Major changes in Chopstx 1.19
+
+  Released 2021-02-18
+
+** Acknowledge button support for GNU/Linux emulation
+User is asked acknowledge by RET with standard input.
+
+** USB driver for GNU/Linux emulation
+It shows start-up message now.
+
+** ADC driver for GNU/Linux emulation
+It uses getrandom(2), output is not deterministic any more.
+
+** Bug fix for GNU/Linux emulation
+When creating a thread, allocated memory for struct chx_thread was not
+initialized by chopstx_create_arch, assuming getcontext does it well.
+To make sure (getcontext would not update the area for FPU registers,
+when not used), it's now initialized by zeros.
+
+
 * Major changes in Chopstx 1.18
 
   Released 2019-12-30

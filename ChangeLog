@@ -1,3 +1,8 @@
+2021-02-18  NIIBE Yutaka  <gniibe@fsij.org>
+
+	* VERSION: 1.19.
+	* doc/chopstx.texi (VERSION): 1.19.
+
 2021-02-17  NIIBE Yutaka  <gniibe@fsij.org>
 
 	Backport from master.
