@@ -334,7 +334,7 @@ chx_handle_intr (void)
   register struct chx_thread *tp_next asm ("r0");;
 
   asm volatile ("mrs	%0, IPSR\n\t"
-		"sub	%0, #16\n\t"   /* Exception # - 16 = interrupt number.	*/
+		"subs	%0, #16\n\t"   /* Exception # - 16 = interrupt number.	*/
 		"bpl	0f\n\t"
 		"bl	chx_timer_expired\n\t"
 		"b	1f\n"
