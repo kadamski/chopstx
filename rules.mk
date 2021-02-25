@@ -71,7 +71,7 @@ MCFLAGS   = -march=rv32imac -mabi=ilp32
 LDFLAGS   = $(MCFLAGS) -nodefaultlibs -nostartfiles -lc -T$(LDSCRIPT) \
             -Wl,-Map=$(BUILDDIR)/$(PROJECT).map,--cref,--no-warn-mismatch
 else
-MCFLAGS   = -mcpu=$(MCU)
+MCFLAGS   = -mcpu=$(MCU) -masm-syntax-unified
 LDFLAGS   = $(MCFLAGS) -nostartfiles -T$(LDSCRIPT) \
             -Wl,-Map=$(BUILDDIR)/$(PROJECT).map,--cref,--no-warn-mismatch,--gc-sections
 endif

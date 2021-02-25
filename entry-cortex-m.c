@@ -113,7 +113,7 @@ entry (void)
 {
   asm volatile ("bl	clock_init\n\t"
 		/* Clear BSS section.  */
-		"mov	r0, #0\n\t"
+		"movs	r0, #0\n\t"
 		"ldr	r1, =_bss_start\n\t"
 		"ldr	r2, =_bss_end\n"
 	"0:\n\t"
@@ -121,7 +121,7 @@ entry (void)
 		"beq	1f\n\t"
 #if defined(__ARM_ARCH_6M__)
 		"str	r0, [r1]\n\t"
-		"add	r1, #4\n\t"
+		"adds	r1, #4\n\t"
 #else
 		"str	r0, [r1], #4\n\t"
 #endif
@@ -137,8 +137,8 @@ entry (void)
 #if defined(__ARM_ARCH_6M__)
 		"ldr	r0, [r3]\n\t"
 		"str	r0, [r1]\n\t"
-		"add	r3, #4\n\t"
-		"add	r1, #4\n\t"
+		"adds	r3, #4\n\t"
+		"adds	r1, #4\n\t"
 #else
 		"ldr	r0, [r3], #4\n\t"
 		"str	r0, [r1], #4\n\t"
@@ -147,9 +147,9 @@ entry (void)
 	"3:\n\t"
 		/* Switch to PSP.  */
 		"ldr	r0, =__process0_stack_end__\n\t"
-		COMPOSE_STATEMENT ("sub	r0, #", CHOPSTX_THREAD_SIZE, "\n\t")
+		COMPOSE_STATEMENT ("subs	r0, #", CHOPSTX_THREAD_SIZE, "\n\t")
 		"msr	PSP, r0\n\t" /* Process (main routine) stack.  */
-		"mov	r1, #2\n\t"
+		"movs	r1, #2\n\t"
 		"msr	CONTROL, r1\n\t"
 		"isb\n\t"
 		"bl	chx_init\n\t"
@@ -157,7 +157,7 @@ entry (void)
 		"bl	gpio_init\n\t"
 		/* Enable interrupts.  */
 #if defined(__ARM_ARCH_7M__) || defined(__ARM_ARCH_7EM__)
-		"mov	r0, #0\n\t"
+		"movs	r0, #0\n\t"
 		"msr	BASEPRI, r0\n\t"
 #endif
 		"cpsie	i\n\t"

@@ -19,10 +19,10 @@ reset (void)
 {
   asm volatile ("cpsid	i\n\t"		/* Mask all interrupts. */
 		"mov	r0, pc\n\t"	/* r0 = PC & ~0x0fff */
-		"mov	r1, #0x10\n\t"
-		"lsl	r1, #8\n\t"
-		"sub	r1, r1, #1\n\t"
-		"bic	r0, r0, r1\n\t"
+		"movs	r1, #0x10\n\t"
+		"lsls	r1, #8\n\t"
+		"subs	r1, #1\n\t"
+		"bics	r0, r0, r1\n\t"
 		"ldr	r2, [r0]\n\t"
 		"msr	MSP, r2\n\t"	/* Main (exception handler) stack. */
 		"b	entry\n\t"

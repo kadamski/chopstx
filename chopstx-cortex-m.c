@@ -272,7 +272,7 @@ involuntary_context_switch (struct chx_thread *tp_next)
     {
       /* Save registers onto CHX_THREAD struct.  */
       asm volatile (
-	"add	%0, #20\n\t"
+	"adds	%0, #20\n\t"
 	"stm	%0!, {r4, r5, r6, r7}\n\t"
 	"mov	r2, r8\n\t"
 	"mov	r3, r9\n\t"
@@ -287,7 +287,7 @@ involuntary_context_switch (struct chx_thread *tp_next)
 	   * works.  R7 keeps its value, but having "r7" here prevents
 	   * use of R7 before this asm statement.
 	   */
-	: "r2", "r3", "r4", "r5", "r6", "r7", "memory");
+	: "cc", "r2", "r3", "r4", "r5", "r6", "r7", "memory");
 
       tp_next = chx_running_preempted (tp_next);
     }
@@ -301,7 +301,7 @@ involuntary_context_switch (struct chx_thread *tp_next)
 	/* Update running: chx_set_running */
 	"str	r0, [r1]\n\t"
 	/**/
-	"add	r0, #20\n\t"
+	"adds	r0, #20\n\t"
 	"ldm	r0!, {r4, r5, r6, r7}\n\t"
 #if defined(__ARM_ARCH_6M__)
 	"ldm	r0!, {r1, r2, r3}\n\t"
@@ -319,8 +319,8 @@ involuntary_context_switch (struct chx_thread *tp_next)
 	"ldr	r1, [r0], #4\n\t"
 	"msr	PSP, r1\n\t"
 #endif
-	"mov	r0, #0\n\t"
-	"sub	r0, #3\n\t" /* EXC_RETURN to a thread with PSP */
+	"movs	r0, #0\n\t"
+	"subs	r0, #3\n\t" /* EXC_RETURN to a thread with PSP */
 	"bx	r0"
 	: /* no output */ : "r" (tp_next) : "memory");
 }
@@ -335,24 +335,14 @@ chx_handle_intr (void)
 
   asm volatile ("mrs	%0, IPSR\n\t"
 		/* Exception # - 16 = interrupt number.  */
-		/*
-		 * Confusingly, ARM_ARCH_6M uses Pre-UAL Thumb syntax,
-		 * while we use UAL syntax for newer.  Note that the
-		 * binary representation of the instruction is exactly
-		 * same, despite the syntax difference.
-		 */
-#if defined(__ARM_ARCH_6M__)
-		"sub	%0, #16\n\t"
-#else
 		"subs	%0, #16\n\t"
-#endif
 		"bpl	0f\n\t"
 		"bl	chx_timer_expired\n\t"
 		"b	1f\n"
 	      "0:\n\t"
 		"bl	chx_recv_irq\n"
 	      "1:"
-		: "=r" (tp_next) : /* no input */ : "memory");
+		: "=r" (tp_next) : /* no input */ : "cc", "memory");
 
   if (tp_next)
     asm volatile (
@@ -360,8 +350,8 @@ chx_handle_intr (void)
 	: /*no input */ : /* no input */ : "memory");
   else
     asm volatile (
-	"mov	r0, #0\n\t"
-	"sub	r0, #3\n\t" /* EXC_RETURN to a thread with PSP */
+	"movs	r0, #0\n\t"
+	"subs	r0, #3\n\t" /* EXC_RETURN to a thread with PSP */
 	"bx	r0"
 	: /*no input */ : /* no input */ : "memory");
 }
@@ -403,10 +393,10 @@ voluntary_context_switch (struct chx_thread *tp_next)
    */
   asm ("mov	%0, lr\n\t"
        "ldr	r2, =.L_CONTEXT_SWITCH_FINISH\n\t"
-       "mov	r3, #128\n\t"
-       "lsl	r3, #17\n\t"
+       "movs	r3, #128\n\t"
+       "lsls	r3, #17\n\t"
        "push	{%0, r2, r3}\n\t"
-       "mov	%0, #0\n\t"
+       "movs	%0, #0\n\t"
        "mov	r2, %0\n\t"
        "mov	r3, %0\n\t"
        "push	{%0, r2, r3}\n\t"
@@ -415,10 +405,10 @@ voluntary_context_switch (struct chx_thread *tp_next)
        "push	{%0, r3}\n\t"
        : "=r" (tp)
        : /* no input */
-       : "r2", "r3", "memory");
+       : "cc", "r2", "r3", "memory");
 
   /* Save registers onto CHX_THREAD struct.  */
-  asm ("add	r1, #20\n\t"
+  asm ("adds	r1, #20\n\t"
        "stm	r1!, {r4, r5, r6, r7}\n\t"
        "mov	r2, r8\n\t"
        "mov	r3, r9\n\t"
@@ -426,10 +416,10 @@ voluntary_context_switch (struct chx_thread *tp_next)
        "mov	r5, r11\n\t"
        "mov	r6, sp\n\t"
        "stm	r1!, {r2, r3, r4, r5, r6}\n\t"
-       "sub	r1, #56"
+       "subs	r1, #56"
        : /* no output */
        : "r" (tp)
-       : "r2", "r3", "r4", "r5", "r6", "r7", "memory");
+       : "cc", "r2", "r3", "r4", "r5", "r6", "r7", "memory");
 
   asm volatile (/* Now, r0 points to the thread to be switched.  */
 		/* Put it to *running.  */
@@ -450,7 +440,7 @@ voluntary_context_switch (struct chx_thread *tp_next)
 
 		/* Normal context switch */
 	"0:\n\t"
-		"add	r0, #20\n\t"
+		"adds	r0, #20\n\t"
 		"ldm	r0!, {r4, r5, r6, r7}\n\t"
 		"ldm	r0!, {r1, r2, r3}\n\t"
 		"mov	r8, r1\n\t"
@@ -475,12 +465,12 @@ voluntary_context_switch (struct chx_thread *tp_next)
 		  [28 or 32] <-- pc
 		*/
 		"ldr	r0, [sp, #28]\n\t"
-		"lsl	r1, r0, #23\n\t"
+		"lsls	r1, r0, #23\n\t"
 		"bcc	2f\n\t"
 		/**/
 		"ldr	r2, [sp, #24]\n\t"
-		"mov	r1, #1\n\t"
-		"orr	r2, r1\n\t"	/* Ensure Thumb-mode */
+		"movs	r1, #1\n\t"
+		"orrs	r2, r1\n\t"	/* Ensure Thumb-mode */
 		"str	r2, [sp, #32]\n\t"
 		"msr	APSR_nzcvq, r0\n\t"
 		/**/
@@ -493,8 +483,8 @@ voluntary_context_switch (struct chx_thread *tp_next)
 		"pop	{pc}\n"
 	"2:\n\t"
 		"ldr	r2, [sp, #24]\n\t"
-		"mov	r1, #1\n\t"
-		"orr	r2, r1\n\t"	/* Ensure Thumb-mode */
+		"movs	r1, #1\n\t"
+		"orrs	r2, r1\n\t"	/* Ensure Thumb-mode */
 		"str	r2, [sp, #28]\n\t"
 		"msr	APSR_nzcvq, r0\n\t"
 		/**/
@@ -506,11 +496,11 @@ voluntary_context_switch (struct chx_thread *tp_next)
 		"add	sp, #12\n\t"
 		"pop	{pc}\n\t"
 	".L_CONTEXT_SWITCH_FINISH:\n\t"
-		"add	r0, #16\n\t"
+		"adds	r0, #16\n\t"
 		"ldr	r0, [r0]"       /* Get tp->v */
 		: "=r" (result)		/* Return value in R0 */
 		: "0" (tp_next)
-		: "memory");
+		: "cc", "memory");
 #endif
   return result;
 }
@@ -559,7 +549,7 @@ svc (void)
 
   asm ("ldr	r1, =running\n\t"
        "ldr	r1, [r1]\n\t"
-       "add	r1, #20\n\t"
+       "adds	r1, #20\n\t"
        /* Save registers onto CHX_THREAD struct.  */
        "stm	r1!, {r4, r5, r6, r7}\n\t"
        "mov	r2, r8\n\t"
@@ -573,7 +563,7 @@ svc (void)
        "str	r1, [r6]"
        : "=r" (tp_next)
        : /* no input */
-       : "r1", "r2", "r3", "r4", "r5", "r6", "memory");
+       : "cc", "r1", "r2", "r3", "r4", "r5", "r6", "memory");
 
   asm volatile (
 	/* Now, r0 points to the thread to be switched.  */
@@ -583,7 +573,7 @@ svc (void)
 	"str	r0, [r1]\n\t"
 	"cbz	r0, 1f\n\t"
 	/**/
-	"add	r0, #20\n\t"
+	"adds	r0, #20\n\t"
 	"ldm	r0!, {r4, r5, r6, r7}\n\t"
 	"ldr	r8, [r0], #4\n\t"
 	"ldr	r9, [r0], #4\n\t"
@@ -592,27 +582,27 @@ svc (void)
 	"ldr	r1, [r0], #4\n\t"
 	"msr	PSP, r1\n\t"
 	/* Unmask interrupts.  */
-	"mov	r0, #0\n\t"
+	"movs	r0, #0\n\t"
 	"msr	BASEPRI, r0\n\t"
-	"sub	r0, #3\n\t" /* EXC_RETURN to a thread with PSP */
+	"subs	r0, #3\n\t" /* EXC_RETURN to a thread with PSP */
 	"bx	r0\n"
     "1:\n\t"
 	/* Spawn an IDLE thread.  */
 	"ldr	r0, =__main_stack_end__-32\n\t"
 	"msr	PSP, r0\n\t"
-	"mov	r1, #0\n\t"
-	"mov	r2, #0\n\t"
-	"mov	r3, #0\n\t"
+	"movs	r1, #0\n\t"
+	"movs	r2, #0\n\t"
+	"movs	r3, #0\n\t"
 	"stm	r0!, {r1, r2, r3}\n\t"
 	"stm	r0!, {r1, r2, r3}\n\t"
 	"ldr	r1, =chx_idle\n\t" /* PC = idle */
-	"mov	r2, #0x010\n\t"
-	"lsl	r2, r2, #20\n\t" /* xPSR = T-flag set (Thumb) */
+	"movs	r2, #0x010\n\t"
+	"lsls	r2, r2, #20\n\t" /* xPSR = T-flag set (Thumb) */
 	"stm	r0!, {r1, r2}\n\t"
 	/* Unmask interrupts.  */
-	"mov	r0, #0\n\t"
+	"movs	r0, #0\n\t"
 	"msr	BASEPRI, r0\n"
-	"sub	r0, #3\n\t" /* EXC_RETURN to a thread with PSP */
+	"subs	r0, #3\n\t" /* EXC_RETURN to a thread with PSP */
 	"bx	r0"
 	: /* no output */ : "r" (tp_next) : "memory");
 }

@@ -1,7 +1,21 @@
 2021-02-25  NIIBE Yutaka  <gniibe@fsij.org>
 
-	* chopstx-cortex-m.c [__ARM_ARCH_6M__] (chx_handle_intr): More
-	fix, it's actually different syntax in assembler.
+	* rules.mk (MCFLAGS): Add -masm-syntax-unified.
+
+	* entry-cortex-m.c (entry): Use Thumb-16 instruction in unified
+	asm syntax.  This means that no output change for Cortex-M0,
+	but change for Cortex-M3/M4 (shorter, different semantics).
+
+	* example-fsm-55/reset.c (reset): Likewise.
+
+	* chopstx-cortex-m.c
+	[__ARM_ARCH_6M__] (involuntary_context_switch): Use unified syntax.
+	[__ARM_ARCH_7M__] (involuntary_context_switch): Use Thumb-16
+	instruction.
+	[__ARM_ARCH_6M__] (chx_handle_intr): Use unified syntax.
+	[__ARM_ARCH_7M__] (chx_handle_intr): Use Thumb-16 instruction.
+	[__ARM_ARCH_6M__] (voluntary_context_switch): Use unified syntax.
+	[__ARM_ARCH_7M__] (svc): Use Thumb-16 instruction.
 
 2021-02-19  NIIBE Yutaka  <gniibe@fsij.org>
 
