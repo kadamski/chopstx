@@ -1,3 +1,8 @@
+2021-02-25  NIIBE Yutaka  <gniibe@fsij.org>
+
+	* chopstx-cortex-m.c [__ARM_ARCH_6M__] (chx_handle_intr): More
+	fix, it's actually different syntax in assembler.
+
 2021-02-19  NIIBE Yutaka  <gniibe@fsij.org>
 
 	* chopstx-cortex-m.c (chx_handle_intr): Fix SUB instruction.

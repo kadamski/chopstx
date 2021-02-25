@@ -334,7 +334,18 @@ chx_handle_intr (void)
   register struct chx_thread *tp_next asm ("r0");;
 
   asm volatile ("mrs	%0, IPSR\n\t"
-		"subs	%0, #16\n\t"   /* Exception # - 16 = interrupt number.	*/
+		/* Exception # - 16 = interrupt number.  */
+		/*
+		 * Confusingly, ARM_ARCH_6M uses Pre-UAL Thumb syntax,
+		 * while we use UAL syntax for newer.  Note that the
+		 * binary representation of the instruction is exactly
+		 * same, despite the syntax difference.
+		 */
+#if defined(__ARM_ARCH_6M__)
+		"sub	%0, #16\n\t"
+#else
+		"subs	%0, #16\n\t"
+#endif
 		"bpl	0f\n\t"
 		"bl	chx_timer_expired\n\t"
 		"b	1f\n"
