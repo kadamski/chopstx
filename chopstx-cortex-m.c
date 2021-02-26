@@ -559,7 +559,7 @@ svc (void)
        "mrs	r6, PSP\n\t" /* r13(=SP) in user space.  */
        "stm	r1!, {r2, r3, r4, r5, r6}\n\t"
        "ldr	r0, [r6]\n\t"
-       "sub	r1, #56\n\t"
+       "subs	r1, #56\n\t"
        "str	r1, [r6]"
        : "=r" (tp_next)
        : /* no input */
