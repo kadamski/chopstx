@@ -1,6 +1,24 @@
 NEWS - Noteworthy changes
 
 
+* Major changes in Chopstx 2.2
+
+  Released 2021-02-25
+
+** Acknowledge button support for GNU/Linux emulation
+User is asked acknowledge by RET with standard input.
+
+** USB driver for GNU/Linux emulation
+It shows start-up message now.
+
+** ADC driver for GNU/Linux emulation
+It uses getrandom(2), output is not deterministic any more.
+
+** Bug fix for Cortex-M3/M4 Support
+In 2.1, preemption doesn't work well, because of the difference of
+assembler syntax.
+
+
 * Major changes in Chopstx 2.1
 
   Released 2021-02-12
@@ -17,7 +35,7 @@ In 2.0, GNU/Linux emulation doesn't work well with chx_idle when it
 handles interrupt synchronously and the waken thread is the same one
 which called chx_idle.
 
-** Bug fix for Cortex-M0/Cortex-M3 Support
+** Bug fix for Cortex-M0/M3/M4 Support
 In 2.0, Cortex-M0 with no tail-chaining support (e.g. STM32F030)
 doesn't work.  In 2.0, Cortex-M3/M4 may fail when two or more
 interrupts occur simultaneously; A waken thread (which is about to
