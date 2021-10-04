@@ -949,7 +949,9 @@ chopstx_mutex_lock (chopstx_mutex_t *mutex)
  * chopstx_mutex_unlock - Unlock the mutex
  * @mutex: Mutex
  *
- * Unlock @mutex.
+ * Unlock @mutex.  Note that Chopstx doesn't allow unlocking by
+ * non-owner of the lock.  chopstx_mutex_unlock should be called
+ * by a thread which did chopstx_mutex_lock.
  */
 void
 chopstx_mutex_unlock (chopstx_mutex_t *mutex)
