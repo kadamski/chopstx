@@ -1,3 +1,7 @@
+2021-10-04  NIIBE Yutaka  <gniibe@fsij.org>
+
+	* mcu/usb-usbip.c (URB_DATA_SIZE): Tweak the value.
+
 2021-02-26  NIIBE Yutaka  <gniibe@fsij.org>
 
 	* VERSION: 2.2
