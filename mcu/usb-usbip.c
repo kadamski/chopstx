@@ -22,10 +22,26 @@
  */
 
 /*
- FIXME:
-   RESET handling
-   USB Shutdown
-   Use reply structure of its own
+ * This driver is intended to emulate USB full-speed device, which
+ * maximum packet size is 64.
+ *
+ * "USBIP" is actually URB over network (instead of USB packet over
+ * network), and its (current) naive protocol may expose possible
+ * demarcation problem, which never occurs in real host-device; In
+ * real host-device relationship, it is host side, which does
+ * composition/decomposition of URB to/from packets.  In an
+ * implmentation of USB device with USBIP, it needs to be device side,
+ * which does composition/decomposition of URB to/from packets.
+ *
+ * In this implementation of USB driver, URB_DATA_SIZE is defined as
+ * (65544+10), because (major) target device intended is CCID.  In the
+ * CCID specification, you can find the value 65544+10.
+ *
+ *
+ *  FIXME:
+ *    RESET handling
+ *    USB Shutdown
+ *    Use reply structure of its own
  */
 
 #include <pthread.h>
@@ -96,7 +112,7 @@ struct urb {
   struct urb *next;
   struct urb *prev;
 
-  uint16_t remain;
+  uint32_t remain;
   char *data_p;
 
   pthread_t tid;
@@ -236,7 +252,7 @@ attach_device (char busid[32], size_t *len_p)
   return (const char *)&usbip_usb_device;
 }
 
-#define URB_DATA_SIZE 65535
+#define URB_DATA_SIZE (65544+10)
 
 struct usbip_msg_cmd {
   uint32_t devid;
@@ -299,12 +315,14 @@ static int write_data_transaction (struct usb_control *usbc_p,
 static int read_data_transaction (struct usb_control *usbc_p,
 				  int ep_num, char *buf, uint16_t count);
 
+#define USB_MAX_PACKET_SIZE 64 /* For USB fullspeed device.  */
+
 static int
 hc_handle_control_urb (struct urb *urb)
 {
   int r;
   uint16_t count;
-  uint16_t remain = urb->len;
+  uint32_t remain = urb->len;
   uint64_t l;
 
   if ((debug & DEBUG_USB))
@@ -325,10 +343,10 @@ hc_handle_control_urb (struct urb *urb)
 
       while (r == 0)
 	{
-	  if (remain > 64)
-	    count = 64;
+	  if (remain > USB_MAX_PACKET_SIZE)
+	    count = USB_MAX_PACKET_SIZE;
 	  else
-	    count = remain;
+	    count = (uint16_t)remain;
 
 	  read (usbc_ep0.eventfd, &l, sizeof (l));
 	  r = control_write_data_transaction (urb->data_p, count);
@@ -337,7 +355,7 @@ hc_handle_control_urb (struct urb *urb)
 
 	  urb->data_p += count;
 	  remain -= count;
-	  if (count < 64)
+	  if (count < USB_MAX_PACKET_SIZE)
 	    break;
 	}
       if (r >= 0)
@@ -353,10 +371,10 @@ hc_handle_control_urb (struct urb *urb)
 
       while (1)
 	{
-	  if (remain > 64)
-	    count = 64;
+	  if (remain > USB_MAX_PACKET_SIZE)
+	    count = USB_MAX_PACKET_SIZE;
 	  else
-	    count = remain;
+	    count = (uint16_t)remain;
 
 	  read (usbc_ep0.eventfd, &l, sizeof (l));
 	  r = control_read_data_transaction (urb->data_p, count);
@@ -368,7 +386,7 @@ hc_handle_control_urb (struct urb *urb)
 
 	  remain -= r;
 	  urb->data_p += r;
-	  if (r < 64)
+	  if (r < USB_MAX_PACKET_SIZE)
 	    break;
 	}
 
@@ -516,10 +534,10 @@ hc_handle_data_urb (struct usb_control *usbc_p)
   if ((debug & DEBUG_USB))
     puts ("hc_hdu 0");
 
-  if (urb->remain > 64)
-    count = 64;
+  if (urb->remain > USB_MAX_PACKET_SIZE)
+    count = USB_MAX_PACKET_SIZE;
   else
-    count = urb->remain;
+    count = (uint16_t)urb->remain;
 
   if (urb->dir == USBIP_DIR_OUT)
     {				/* Output from host to device.  */
@@ -533,7 +551,7 @@ hc_handle_data_urb (struct usb_control *usbc_p)
       urb->data_p += count;
       urb->remain -= count;
 
-      if (urb->remain == 0 || count < 64)
+      if (urb->remain == 0 || count < USB_MAX_PACKET_SIZE)
 	{
 	  size_t len = urb->len - urb->remain;
 
@@ -565,7 +583,7 @@ hc_handle_data_urb (struct usb_control *usbc_p)
 
       urb->remain -= r;
       urb->data_p += r;
-      if (urb->remain == 0 || r < 64)
+      if (urb->remain == 0 || r < USB_MAX_PACKET_SIZE)
 	{
 	  size_t len = urb->len - urb->remain;
 
@@ -596,7 +614,7 @@ issue_get_desc (void)
 {
   struct urb *urb;
 
-  urb = malloc (sizeof (struct urb) + 64);
+  urb = malloc (sizeof (struct urb) + USB_MAX_PACKET_SIZE);
 
   urb->next = urb->prev = urb;
 
@@ -606,14 +624,14 @@ issue_get_desc (void)
   urb->setup[3] = 1;			 /* Value H: desc_type */
   urb->setup[4] = 0;              	 /* Index */
   urb->setup[5] = 0;
-  urb->setup[6] = 64;		         /* Length */
+  urb->setup[6] = USB_MAX_PACKET_SIZE;   /* Length */
   urb->setup[7] = 0;
   urb->data_p = urb->data;
   urb->seq = 0;
   urb->devid = 0;
   urb->dir = USBIP_DIR_IN;
   urb->ep = 0;
-  urb->remain = urb->len = 64;
+  urb->remain = urb->len = USB_MAX_PACKET_SIZE;
   hc_handle_control_urb (urb);
   return urb;
 }
