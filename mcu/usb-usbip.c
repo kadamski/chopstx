@@ -252,7 +252,7 @@ attach_device (char busid[32], size_t *len_p)
   return (const char *)&usbip_usb_device;
 }
 
-#define URB_DATA_SIZE (65544+10)
+#define URB_DATA_SIZE (65544+10+2)
 
 struct usbip_msg_cmd {
   uint32_t devid;
@@ -747,7 +747,7 @@ usbip_handle_urb (uint32_t seq)
 
  leave:
   msg.cmd = htonl (REP_URB_SUBMIT);
-  msg.seq = htonl (urb->seq);
+  msg.seq = htonl (seq);
 
   memset (&msg_rep, 0, sizeof (msg_rep));
   msg_rep.status = htonl (r);
