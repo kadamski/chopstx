@@ -36,8 +36,8 @@
  * In this implementation of USB driver, URB_DATA_SIZE is defined as
  * (65544+10), because (major) target device intended is CCID.  In the
  * CCID specification, you can find the value 65544+10.
- *
- *
+ */
+/*
  *  FIXME:
  *    RESET handling
  *    USB Shutdown
@@ -252,7 +252,67 @@ attach_device (char busid[32], size_t *len_p)
   return (const char *)&usbip_usb_device;
 }
 
-#define URB_DATA_SIZE (65544+10+2)
+/*
+ * The number 65544 comes from ISO 7816-4, which defines data format
+ * of smartcard;  CLS INS P1 P2 occupies four octets.  Then, Lc-octet
+ * to represent size of command data block, then command data block.
+ * Lastly, Le-octet to represent size of response data block to be
+ * returned.
+ *
+ * /----- for CLS INS P1 P2
+ * |
+ * |   /-- for Lc
+ * |   |
+ * |   |   /-- for data block
+ * |   |   |
+ * |   |   |       /-- for Le
+ * |   |   |       |
+ * v   v   v       v
+ * 4 + 3 + 65535 + 2 = 65544
+ *
+ * The number 10 comes from the CCID protocol specification; It is the
+ * header size of CCID.  Besides, we can find the number 65544 in the
+ * CCID protocol specification, too.
+ *
+ * And... we have "AND ONE MORE" three times.
+ *
+ * We accept that, as Buddha did.
+ *
+ * There are different interpretations for the historical fact and the
+ * idiom.  Most likely, nowadays, here, third-time is considered a
+ * strikeout, perhaps, due to popularity of baseball.
+ */
+#define URB_DATA_SIZE (65544+10+1+1+1)
+
+/*
+ * The reasons why there are "+1" three times.
+ *
+ * Wrong (1): +1, because of confusion of data size maximum.
+ * Wrong (2): +1, because of confusion of the size for Le.
+ * Wrong (3): +1, because of keeping applying old patch.
+ *
+ * Something like this may occur, unfortunately, in our world.
+ *
+ * We need to consider the real case of the max buffer size for
+ * libusb_bulk_transfer with CCID (let us call this "CASE_MAX").
+ *
+ * (1) Although the data size maximum (for all cases) is 65536, it
+ * only occurs when Le size is zero.  In the particular case of
+ * CASE_MAX, it is actually 65535.  When just applying the max value
+ * 65536, +1 occurs.
+ *
+ * (2) Although maximum size to represent Le is 3, it only occurs when
+ * Lc size is zero.  In the particular case of CASE_MAX, it is
+ * actually 2.  When just applying the max value 3, +1 occurs.
+ *
+ * (3) Fedora keeps a old patch for Ominikey 3121.  The patch was
+ * written when the value of CMD_BUF_SIZE in libccid was small for
+ * short extended APDU exchange.  In the patch, it uses the value 11
+ * for the header size (instead of 10) of TPDU, for its special
+ * support.  Historically, CMD_BUF_SIZE in libccid was updated
+ * to bigger value to handle extended APDU exchange.  When just applying
+ * the old patch using 11, +1 occurs.
+ */
 
 struct usbip_msg_cmd {
   uint32_t devid;
