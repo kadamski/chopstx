@@ -1,6 +1,6 @@
 Chopstx - Threads and only Threads
-							Version 1.19
-							  2021-02-18
+							Version 1.20
+							  2021-10-12
 							Niibe Yutaka
 					     Flying Stone Technology
 
@@ -62,12 +62,4 @@ Future Works
 
 RISC-V port (for GD32VF103) is available in 2.x.  Please have a look
 at the master branch, and test it if possible.
-
-Convenience function to determine the bottom of thread stack,
-configuration of thread size by compiler's output would be next things
-to be done.
-
-Experimental SMP port for Cortex-A7 is under development.  For SMP,
-more careful considerations for shared access to objects of struct
-chx_pq is needed.  So, modifications required will not be small.
 -- 
