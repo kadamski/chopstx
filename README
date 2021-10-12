@@ -1,6 +1,6 @@
 Chopstx - Threads and only Threads
-							 Version 2.2
-							  2020-02-26
+							 Version 2.3
+							  2021-10-12
 							Niibe Yutaka
 					     Flying Stone Technology
 
@@ -28,7 +28,8 @@ Note that this library is _not_ related to the hand game:
     https://en.wikipedia.org/wiki/Chopsticks_(hand_game)
 
 Thanks to Yao Wei and Enrico Zini for giving me an opportunity
-visiting the wiki page above, when my children were playing the game.
+visiting the wiki page above in Debconf Taiwan, when my children were
+playing the game.
 
 
 License
@@ -65,7 +66,7 @@ Convenience function to determine the bottom of thread stack,
 configuration of thread size by compiler's output would be next things
 to be done.
 
-Experimental SMP port for Cortex-A7 is under development.  For SMP,
-more careful considerations for shared access to objects of struct
-chx_pq is needed.  So, modifications required will not be small.
+We have an experimental SMP port for Cortex-A7.  For SMP, more careful
+considerations for shared access to objects of struct chx_pq is
+needed.  So, modifications required will not be small.
 -- 

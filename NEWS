@@ -1,6 +1,15 @@
 NEWS - Noteworthy changes
 
 
+* Major changes in Chopstx 2.3
+
+  Released 2021-10-12
+
+** Fix of USB driver for GNU/Linux emulation
+
+Fix the value of URB_DATA_SIZE, so that Gnuk can work with PC/SC.
+
+
 * Major changes in Chopstx 2.2
 
   Released 2021-02-25

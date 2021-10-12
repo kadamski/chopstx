@@ -1,3 +1,8 @@
+2021-10-12  NIIBE Yutaka  <gniibe@fsij.org>
+
+	* VERSION: 2.3
+	* doc/chopstx.texi (VERSION): 2.3.
+
 2021-10-11  NIIBE Yutaka  <gniibe@fsij.org>
 
 	* mcu/usb-usbip.c (URB_DATA_SIZE): Tweak the value.
