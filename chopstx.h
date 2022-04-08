@@ -27,7 +27,7 @@
  */
 
 struct chx_qh {
-  struct chx_pq *next, *prev;
+  struct chx_qh *next, *prev;
 };
 
 typedef uintptr_t chopstx_t;

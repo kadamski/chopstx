@@ -158,7 +158,7 @@ chx_handle_intr (uint32_t irq_num)
 
   chx_disable_intr (irq_num);
   chx_spin_lock (&q_intr.lock);
-  for (p = q_intr.q.next; p != (struct chx_pq *)&q_intr.q; p = p->next)
+  FOR_QUEUE (p, (&q_intr.q), struct chx_pq *)
     if (p->v == irq_num)
       {			/* should be one at most. */
 	struct chx_px *px = (struct chx_px *)p;
