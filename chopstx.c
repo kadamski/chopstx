@@ -1,7 +1,8 @@
 /*
  * chopstx.c - Threads and only threads.
  *
- * Copyright (C) 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021
+ * Copyright (C) 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021,
+ *               2022
  *               Flying Stone Technology
  * Author: NIIBE Yutaka <gniibe@fsij.org>
  *
@@ -83,6 +84,9 @@ struct chx_queue {
   struct chx_qh q;
   struct chx_spinlock lock;
 };
+
+/* Forward declaration.  */
+struct chx_pq;
 
 /* READY: priority queue. */
 static struct chx_queue q_ready;
@@ -168,6 +172,10 @@ struct chx_thread {		/* inherits PQ */
 };
 
 
+/* Macro to loop over queue.  */
+#define FOR_QUEUE(var, queue, var_type)   \
+  for (var = (var_type)queue->next; var != (var_type)queue; var = var->next)
+
 /*
  * Double linked list handling.
  */
@@ -175,7 +183,7 @@ struct chx_thread {		/* inherits PQ */
 static int
 ll_empty (struct chx_qh *q)
 {
-  return q == (struct chx_qh *)q->next;
+  return q == q->next;
 }
 
 static struct chx_pq *
@@ -188,24 +196,22 @@ ll_dequeue (struct chx_pq *pq)
 }
 
 static void
-ll_insert (struct chx_pq *pq0, struct chx_qh *q)
+ll_insert (struct chx_qh *q0, struct chx_qh *q)
 {
-  struct chx_pq *pq = (struct chx_pq *)q;
-
-  pq0->next = (struct chx_pq *)pq;
-  pq0->prev = pq->prev;
-  pq->prev->next = (struct chx_pq *)pq0;
-  pq->prev = pq0;
+  q0->next = q;
+  q0->prev = q->prev;
+  q->prev->next = q0;
+  q->prev = q0;
 }
 
 
 static struct chx_pq *
 ll_pop (struct chx_qh *q)
 {
-  if (q == (struct chx_qh *)q->next)
+  if (q == q->next)
     return NULL;
 
-  return ll_dequeue (q->next);
+  return ll_dequeue ((struct chx_pq *)q->next);
 }
 
 static void
@@ -213,12 +219,12 @@ ll_prio_push (struct chx_pq *pq0, struct chx_qh *q0)
 {
   struct chx_pq *p;
 
-  for (p = q0->next; p != (struct chx_pq *)q0; p = p->next)
+  FOR_QUEUE (p, q0, struct chx_pq *)
     if (p->prio <= pq0->prio)
       break;
 
   pq0->parent = q0;
-  ll_insert (pq0, (struct chx_qh *)p);
+  ll_insert ((struct chx_qh *)pq0, (struct chx_qh *)p);
 }
 
 static void
@@ -226,12 +232,12 @@ ll_prio_enqueue (struct chx_pq *pq0, struct chx_qh *q0)
 {
   struct chx_pq *p;
 
-  for (p = q0->next; p != (struct chx_pq *)q0; p = p->next)
+  FOR_QUEUE (p, q0, struct chx_pq *)
     if (p->prio < pq0->prio)
       break;
 
   pq0->parent = q0;
-  ll_insert (pq0, (struct chx_qh *)p);
+  ll_insert ((struct chx_qh *)pq0, (struct chx_qh *)p);
 }
 
 
@@ -318,12 +324,12 @@ chx_timer_insert (struct chx_thread *tp, uint32_t usec)
   uint32_t ticks = usec_to_ticks (usec);
   uint32_t next_ticks = chx_systick_get ();
 
-  for (p = q_timer.q.next; p != (struct chx_pq *)&q_timer.q; p = p->next)
+  FOR_QUEUE (p, (&q_timer.q), struct chx_pq *)
     {
       if (ticks < next_ticks)
 	{
 	  tp->parent = &q_timer.q;
-	  ll_insert ((struct chx_pq *)tp, (struct chx_qh *)p);
+	  ll_insert ((struct chx_qh *)tp, (struct chx_qh *)p);
 	  chx_set_timer ((struct chx_thread *)tp->prev, ticks);
 	  chx_set_timer (tp, (next_ticks - ticks));
 	  break;
@@ -338,7 +344,7 @@ chx_timer_insert (struct chx_thread *tp, uint32_t usec)
   if (p == (struct chx_pq *)&q_timer.q)
     {
       tp->parent = &q_timer.q;
-      ll_insert ((struct chx_pq *)tp, (struct chx_qh *)p);
+      ll_insert ((struct chx_qh *)tp, (struct chx_qh *)p);
       chx_set_timer ((struct chx_thread *)tp->prev, ticks);
       chx_set_timer (tp, 1);	/* Non-zero for the last entry. */
     }
@@ -367,7 +373,7 @@ chx_timer_dequeue (struct chx_thread *tp)
     {
       struct chx_pq *p;
 
-      for (p = q_timer.q.next; p != (struct chx_pq *)tp; p = p->next)
+      FOR_QUEUE (p, (&q_timer.q), struct chx_pq *)
 	ticks_remained += p->v;
 
       tp_prev->v += tp->v;
@@ -454,7 +460,7 @@ chx_recv_irq (uint32_t irq_num)
 
   chx_disable_intr (irq_num);
   chx_spin_lock (&q_intr.lock);
-  for (p = q_intr.q.next; p != (struct chx_pq *)&q_intr.q; p = p->next)
+  FOR_QUEUE (p, (&q_intr.q), struct chx_pq *)
     if (p->v == irq_num)
       /* should be one at most.  */
       break;
@@ -561,13 +567,13 @@ chx_init (struct chx_thread *tp)
   chx_init_arch (tp);
   chx_spin_init (&chx_enable_sleep_lock);
 
-  q_ready.q.next = q_ready.q.prev = (struct chx_pq *)&q_ready.q;
+  q_ready.q.next = q_ready.q.prev = &q_ready.q;
   chx_spin_init (&q_ready.lock);
-  q_timer.q.next = q_timer.q.prev = (struct chx_pq *)&q_timer.q;
+  q_timer.q.next = q_timer.q.prev = &q_timer.q;
   chx_spin_init (&q_timer.lock);
-  q_join.q.next = q_join.q.prev = (struct chx_pq *)&q_join.q;
+  q_join.q.next = q_join.q.prev = &q_join.q;
   chx_spin_init (&q_join.lock);
-  q_intr.q.next = q_intr.q.prev = (struct chx_pq *)&q_intr.q;
+  q_intr.q.next = q_intr.q.prev = &q_intr.q;
   chx_spin_init (&q_intr.lock);
   tp->next = tp->prev = (struct chx_pq *)tp;
   tp->mutex_list = NULL;
@@ -647,7 +653,7 @@ chx_exit (void *retval)
   if (running->flag_join_req)
     {		       /* wake up a thread which requests to join */
       chx_spin_lock (&q_join.lock);
-      for (p = q_join.q.next; p != (struct chx_pq *)&q_join.q; p = p->next)
+      FOR_QUEUE (p, (&q_join.q), struct chx_pq *)
 	if (p->v == (uintptr_t)running)
 	  {			/* should be one at most. */
 	    ll_dequeue (p);
@@ -842,7 +848,7 @@ void
 chopstx_mutex_init (chopstx_mutex_t *mutex)
 {
   chx_spin_init (&mutex->lock);
-  mutex->q.next = mutex->q.prev = (struct chx_pq *)&mutex->q;
+  mutex->q.next = mutex->q.prev = &mutex->q;
   mutex->list = NULL;
   mutex->owner = NULL;
 }
@@ -980,7 +986,7 @@ void
 chopstx_cond_init (chopstx_cond_t *cond)
 {
   chx_spin_init (&cond->lock);
-  cond->q.next = cond->q.prev = (struct chx_pq *)&cond->q;
+  cond->q.next = cond->q.prev = &cond->q;
 }
 
 

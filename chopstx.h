@@ -1,7 +1,7 @@
 /*
  * chopstx.h - Threads and only threads.
  *
- * Copyright (C) 2013, 2016, 2017, 2018, 2020
+ * Copyright (C) 2013, 2016, 2017, 2018, 2020, 2022
  *               Flying Stone Technology
  * Author: NIIBE Yutaka <gniibe@fsij.org>
  *
@@ -28,7 +28,7 @@
  */
 
 struct chx_qh {
-  struct chx_pq *next, *prev;
+  struct chx_qh *next, *prev;
 };
 
 typedef uintptr_t chopstx_t;
