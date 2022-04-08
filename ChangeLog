@@ -2,13 +2,14 @@
 
 	* chopstx.h (struct chx_qh): Change the type for next and prev.
 	* chopstx.c (FOR_QUEUE): New macro.
+	(ll_empty): Follow the change of struct chx_qh.
 	(ll_insert): Change the type of the first argument.
 	(ll_pop): Follow the change of struct chx_qh.
 	(ll_prio_push): Use FOR_QUEUE macro.  Follow the change of
 	ll_insert.
 	(ll_prio_enqueue, chx_timer_insert): Likewise.
-	(chx_timer_dequeue, chx_recv_irq): Likewise.
-	(chx_init, chopstx_mutex_init, chopstx_cond_init): Likewise.
+	(chx_timer_dequeue, chx_recv_irq, chx_init): Likewise.
+	(chx_exit, chopstx_mutex_init, chopstx_cond_init): Likewise.
 
 2021-10-12  NIIBE Yutaka  <gniibe@fsij.org>
 
