@@ -494,7 +494,7 @@ chx_recv_irq (uint32_t irq_num)
       ll_dequeue ((struct chx_pq *)q);
       chx_wakeup ((struct chx_pq *)q);
 
-      if (r == NULL || (uint16_t)r->prio < px->master->prio)
+      if (r == NULL || r->prio < px->master->prio)
 	return chx_ready_pop ();
     }
 
