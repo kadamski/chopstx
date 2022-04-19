@@ -1,3 +1,19 @@
+2022-04-19  NIIBE Yutaka  <gniibe@fsij.org>
+
+	* chopstx.c (struct chx_pq): Use struct qh.
+	(struct chx_px): Use struct qh.
+	(struct chx_thread): Use struct qh.
+	(FOR_QUEUE): Remove.
+	(ll_dequeue): Follow the changes of above.
+	(ll_prio_push): Use struct qh for the loop.
+	(ll_prio_enqueue): Likewise.
+	(chx_set_timer): Use struct qh for the first argument.
+	(chx_timer_insert, chx_timer_dequeue): Use struct qh for the loop.
+	(chx_timer_expired, chx_recv_irq): Likewise.
+	(chx_init, chopstx_create, chx_proxy_init): Use the address at q.
+	(chx_exit): Use struct qh for the loop.
+	(chx_mutex_unlock): Fix the calculation of the priority.
+
 2022-04-08  NIIBE Yutaka  <gniibe@fsij.org>
 
 	* chopstx.h (struct chx_qh): Change the type for next and prev.
