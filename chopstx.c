@@ -730,10 +730,11 @@ chx_mutex_unlock (chopstx_mutex_t *mutex)
       for (m = running->mutex_list; m; m = m->list)
 	if (!ll_empty (&m->q))
 	  {
-	    struct chx_thread *tp_next = (struct chx_thread *)m->q.next;
+	    struct chx_thread *tp_m = (struct chx_thread *)m->q.next;
+	    uint16_t prio_m = tp_m->prio;
 
-	    if (tp_next->prio > newprio)
-	      newprio = tp_next->prio;
+	    if (prio_m > newprio)
+	      newprio = prio_m;
 	  }
       /* Then, assign it.  */
       running->prio = newprio;
