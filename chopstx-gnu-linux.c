@@ -154,21 +154,24 @@ idle (void)
 void
 chx_handle_intr (uint32_t irq_num)
 {
-  struct chx_pq *p;
+  struct chx_qh *q;
 
   chx_disable_intr (irq_num);
   chx_spin_lock (&q_intr.lock);
-  FOR_QUEUE (p, (&q_intr.q), struct chx_pq *)
-    if (p->v == irq_num)
-      {			/* should be one at most. */
-	struct chx_px *px = (struct chx_px *)p;
+  for (q = q_intr.q.next; q != &q_intr.q; q = q->next)
+    {
+      struct chx_pq *p = (struct chx_pq *)q;
+      if (p->v == irq_num)
+	{			/* should be one at most. */
+	  struct chx_px *px = (struct chx_px *)p;
 
-	ll_dequeue (p);
-	chx_wakeup (p);
-	chx_spin_unlock (&q_intr.lock);
-	chx_request_preemption (px->master->prio);
-	return;
-      }
+	  ll_dequeue (p);
+	  chx_wakeup (p);
+	  chx_spin_unlock (&q_intr.lock);
+	  chx_request_preemption (px->master->prio);
+	  return;
+	}
+    }
   chx_spin_unlock (&q_intr.lock);
 }
 

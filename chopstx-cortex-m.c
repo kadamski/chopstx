@@ -267,7 +267,7 @@ chx_cpu_sched_unlock (void)
 void
 chx_handle_intr (void)
 {
-  struct chx_pq *p;
+  struct chx_qh *q;
   register uint32_t irq_num;
 
   asm volatile ("mrs	%0, IPSR\n\t"
@@ -276,16 +276,20 @@ chx_handle_intr (void)
 
   chx_disable_intr (irq_num);
   chx_spin_lock (&q_intr.lock);
-  FOR_QUEUE (p, (&q_intr.q), struct chx_pq *)
-    if (p->v == irq_num)
-      {			/* should be one at most. */
-	struct chx_px *px = (struct chx_px *)p;
+  for (q = q_intr.q.next; q != &q_intr.q; q = q->next)
+    {
+      struct chx_pq *p = (struct chx_pq *)q;
 
-	ll_dequeue (p);
-	chx_wakeup (p);
-	chx_request_preemption (px->master->prio);
-	break;
-      }
+      if (p->v == irq_num)
+	{			/* should be one at most. */
+	  struct chx_px *px = (struct chx_px *)p;
+
+	  ll_dequeue (p);
+	  chx_wakeup (p);
+	  chx_request_preemption (px->master->prio);
+	  break;
+	}
+    }
   chx_spin_unlock (&q_intr.lock);
 }
 

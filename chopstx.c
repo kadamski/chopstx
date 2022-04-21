@@ -129,7 +129,7 @@ static void chx_spin_unlock (struct chx_spinlock *lk)
 
 /**************/
 struct chx_pq {
-  struct chx_pq *next, *prev;
+  struct chx_qh q;
   uint32_t                  : 4;
   uint32_t                  : 5;
   uint32_t                  : 6;
@@ -141,7 +141,7 @@ struct chx_pq {
 };
 
 struct chx_px {			/* inherits PQ */
-  struct chx_pq *next, *prev;
+  struct chx_qh q;
   uint32_t                  : 4;
   uint32_t                  : 5;
   uint32_t                  : 6;
@@ -157,7 +157,7 @@ struct chx_px {			/* inherits PQ */
 };
 
 struct chx_thread {		/* inherits PQ */
-  struct chx_pq *next, *prev;
+  struct chx_qh q;
   uint32_t state            : 4;
   uint32_t flag_detached    : 1;
   uint32_t flag_got_cancel  : 1;
@@ -176,10 +176,6 @@ struct chx_thread {		/* inherits PQ */
 };
 
 
-/* Macro to loop over queue.  */
-#define FOR_QUEUE(var, queue, var_type)   \
-  for (var = (var_type)queue->next; var != (var_type)queue; var = var->next)
-
 /*
  * Double linked list handling.
  */
@@ -193,9 +189,9 @@ ll_empty (struct chx_qh *q)
 static struct chx_pq *
 ll_dequeue (struct chx_pq *pq)
 {
-  pq->next->prev = pq->prev;
-  pq->prev->next = pq->next;
-  pq->prev = pq->next = pq;
+  pq->q.next->prev = pq->q.prev;
+  pq->q.prev->next = pq->q.next;
+  pq->q.prev = pq->q.next = &pq->q;
   return pq;
 }
 
@@ -221,27 +217,35 @@ ll_pop (struct chx_qh *q)
 static void
 ll_prio_push (struct chx_pq *pq0, struct chx_qh *q0)
 {
-  struct chx_pq *p;
+  struct chx_qh *q;
 
-  FOR_QUEUE (p, q0, struct chx_pq *)
-    if (p->prio <= pq0->prio)
-      break;
+  for (q = q0->next; q != q0; q = q->next)
+    {
+      struct chx_pq *p = (struct chx_pq *)q;
+
+      if (p->prio <= pq0->prio)
+	break;
+    }
 
   pq0->parent = q0;
-  ll_insert ((struct chx_qh *)pq0, (struct chx_qh *)p);
+  ll_insert (&pq0->q, q);
 }
 
 static void
 ll_prio_enqueue (struct chx_pq *pq0, struct chx_qh *q0)
 {
-  struct chx_pq *p;
+  struct chx_qh *q;
 
-  FOR_QUEUE (p, q0, struct chx_pq *)
-    if (p->prio < pq0->prio)
-      break;
+  for (q = q0->next; q != q0; q = q->next)
+    {
+      struct chx_pq *p = (struct chx_pq *)q;
+
+      if (p->prio < pq0->prio)
+	break;
+    }
 
   pq0->parent = q0;
-  ll_insert ((struct chx_qh *)pq0, (struct chx_qh *)p);
+  ll_insert (&pq0->q, q);
 }
 
 
@@ -313,29 +317,35 @@ chx_ready_enqueue (struct chx_thread *tp)
 #endif
 
 static void
-chx_set_timer (struct chx_thread *tp, uint32_t ticks)
+chx_set_timer (struct chx_qh *q, uint32_t ticks)
 {
-  if (tp == (struct chx_thread *)&q_timer.q)
+  if (q == &q_timer.q)
     chx_systick_reload (ticks);
   else
-    tp->v = ticks;
+    {
+      struct chx_thread *tp = (struct chx_thread *)q;
+
+      tp->v = ticks;
+    }
 }
 
 static struct chx_thread *
 chx_timer_insert (struct chx_thread *tp, uint32_t usec)
 {
-  struct chx_pq *p;
+  struct chx_qh *q;
   uint32_t ticks = usec_to_ticks (usec);
   uint32_t next_ticks = chx_systick_get ();
 
-  FOR_QUEUE (p, (&q_timer.q), struct chx_pq *)
+  for (q = q_timer.q.next; q != &q_timer.q; q = q->next)
     {
+      struct chx_pq *p = (struct chx_pq *)q;
+
       if (ticks < next_ticks)
 	{
 	  tp->parent = &q_timer.q;
-	  ll_insert ((struct chx_qh *)tp, (struct chx_qh *)p);
-	  chx_set_timer ((struct chx_thread *)tp->prev, ticks);
-	  chx_set_timer (tp, (next_ticks - ticks));
+	  ll_insert (&tp->q, q);
+	  chx_set_timer (tp->q.prev, ticks);
+	  chx_set_timer (&tp->q, (next_ticks - ticks));
 	  break;
 	}
       else
@@ -345,12 +355,12 @@ chx_timer_insert (struct chx_thread *tp, uint32_t usec)
 	}
     }
 
-  if (p == (struct chx_pq *)&q_timer.q)
+  if (q == &q_timer.q)
     {
       tp->parent = &q_timer.q;
-      ll_insert ((struct chx_qh *)tp, (struct chx_qh *)p);
-      chx_set_timer ((struct chx_thread *)tp->prev, ticks);
-      chx_set_timer (tp, 1);	/* Non-zero for the last entry. */
+      ll_insert (&tp->q, q);
+      chx_set_timer (tp->q.prev, ticks);
+      chx_set_timer (&tp->q, 1);	/* Non-zero for the last entry. */
     }
 
   return tp;
@@ -360,25 +370,30 @@ chx_timer_insert (struct chx_thread *tp, uint32_t usec)
 static uint32_t
 chx_timer_dequeue (struct chx_thread *tp)
 {
-  struct chx_thread *tp_prev;
+  struct chx_qh *q_prev;
   uint32_t ticks_remained;
 
   chx_spin_lock (&q_timer.lock);
   ticks_remained = chx_systick_get ();
-  tp_prev = (struct chx_thread *)tp->prev;
-  if (tp_prev == (struct chx_thread *)&q_timer.q)
+  q_prev = tp->q.prev;
+  if (q_prev == &q_timer.q)
     {
-      if (tp->next == (struct chx_pq *)&q_timer.q)
+      if (tp->q.next == &q_timer.q)
 	chx_systick_reload (0);                      /* Cancel timer.  */
       else
 	chx_systick_reload (ticks_remained + tp->v); /* Update timer.  */
     }
   else
     {
-      struct chx_pq *p;
+      struct chx_thread *tp_prev = (struct chx_thread *)q_prev;
+      struct chx_qh *q;
 
-      FOR_QUEUE (p, (&q_timer.q), struct chx_pq *)
-	ticks_remained += p->v;
+      for (q = q_timer.q.next; q != &q_timer.q; q = q->next)
+	{
+	  struct chx_pq *p = (struct chx_pq *)q;
+
+	  ticks_remained += p->v;
+	}
 
       tp_prev->v += tp->v;
     }
@@ -411,15 +426,17 @@ chx_timer_expired (void)
 
       if (!ll_empty (&q_timer.q))
 	{
-	  struct chx_thread *tp_next;
+	  struct chx_qh *q, *q_next;
 
-	  for (tp = (struct chx_thread *)q_timer.q.next;
-	       tp != (struct chx_thread *)&q_timer.q && next_tick == 0;
-	       tp = tp_next)
+	  for (q = q_timer.q.next;
+	       q != &q_timer.q && next_tick == 0;
+	       q = q_next)
 	    {
+	      tp = (struct chx_thread *)q;
+
 	      next_tick = tp->v;
 	      tp->v = (uintptr_t)0;
-	      tp_next = (struct chx_thread *)tp->next;
+	      q_next = tp->q.next;
 	      ll_dequeue ((struct chx_pq *)tp);
 	      chx_ready_enqueue (tp);
 	      if (tp == running)
@@ -430,7 +447,7 @@ chx_timer_expired (void)
 	    }
 
 	  if (!ll_empty (&q_timer.q))
-	    chx_set_timer ((struct chx_thread *)&q_timer.q, next_tick);
+	    chx_set_timer (&q_timer.q, next_tick);
 	}
     }
 
@@ -473,7 +490,7 @@ chx_init (struct chx_thread *tp)
   chx_spin_init (&q_join.lock);
   q_intr.q.next = q_intr.q.prev = &q_intr.q;
   chx_spin_init (&q_intr.lock);
-  tp->next = tp->prev = (struct chx_pq *)tp;
+  tp->q.next = tp->q.prev = &tp->q;
   tp->mutex_list = NULL;
   tp->clp = NULL;
   tp->state = THREAD_RUNNING;
@@ -547,20 +564,24 @@ chx_wakeup (struct chx_pq *pq)
 static void __attribute__((noreturn))
 chx_exit (void *retval)
 {
-  struct chx_pq *p;
+  struct chx_qh *q;
   struct chx_thread *running = chx_running ();
 
   chx_cpu_sched_lock ();
   if (running->flag_join_req)
     {		       /* wake up a thread which requests to join */
       chx_spin_lock (&q_join.lock);
-      FOR_QUEUE (p, (&q_join.q), struct chx_pq *)
-	if (p->v == (uintptr_t)running)
-	  {			/* should be one at most. */
-	    ll_dequeue (p);
-	    chx_wakeup (p);
-	    break;
-	  }
+      for (q = q_join.q.next; q != &q_join.q; q = q->next)
+	{
+	  struct chx_pq *p = (struct chx_pq *)q;
+
+	  if (p->v == (uintptr_t)running)
+	    {			/* should be one at most. */
+	      ll_dequeue (p);
+	      chx_wakeup (p);
+	      break;
+	    }
+	}
       chx_spin_unlock (&q_join.lock);
     }
 
@@ -604,9 +625,14 @@ chx_mutex_unlock (chopstx_mutex_t *mutex)
 
       /* Examine mutexes we hold, and determine new priority for running.  */
       for (m = running->mutex_list; m; m = m->list)
-	if (!ll_empty (&m->q)
-	    && ((struct chx_thread *)(m->q.next))->prio > newprio)
-	  newprio = ((struct chx_thread *)m->q.next)->prio;
+	if (!ll_empty (&m->q))
+	  {
+	    struct chx_thread *tp_m = (struct chx_thread *)m->q.next;
+	    uint16_t prio_m = tp_m->prio;
+
+	    if (prio_m > newprio)
+	      newprio = prio_m;
+	  }
       /* Then, assign it.  */
       running->prio = newprio;
 
@@ -637,7 +663,7 @@ chopstx_create (uint32_t flags_and_prio,
 
   tp = chopstx_create_arch (stack_addr, stack_size, thread_entry,
 			    arg);
-  tp->next = tp->prev = (struct chx_pq *)tp;
+  tp->q.next = tp->q.prev = &tp->q;
   tp->mutex_list = NULL;
   tp->clp = NULL;
   tp->state = THREAD_EXITED;
@@ -1377,7 +1403,7 @@ chx_proxy_init (struct chx_px *px, uint32_t *cp)
 {
   struct chx_thread *running = chx_running ();
 
-  px->next = px->prev = (struct chx_pq *)px;
+  px->q.next = px->q.prev = &px->q;
   px->flag_is_proxy = 1;
   px->prio = running->prio;
   px->parent = NULL;
