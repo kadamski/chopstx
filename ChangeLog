@@ -1,3 +1,15 @@
+2022-07-15  NIIBE Yutaka  <gniibe@fsij.org>
+
+	* rules.mk: Add definition of SPECS for picolibc.
+	* example-fsm-55/Makefile: Add use of SPECS for picolibc.
+	* example-fsm-55/nanodap.cfg: New.
+	* example-lcd/Makefile: Add use of SPECS for picolibc.
+	* example-lcd/gd32vf103.cfg: New from riscv-openocd.
+	* example-lcd/sipeed-usb.cfg: New.
+	* example-lcd/sample.ld.gd32vf103: Fix for picolibc.  Add ENTRY.
+	* entry-riscv32.c (chx_entry): Change the name as it's exported
+	symbol.
+
 2022-04-19  NIIBE Yutaka  <gniibe@fsij.org>
 
 	* chopstx.c (struct chx_pq): Use struct qh.
