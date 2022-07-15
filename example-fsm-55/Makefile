@@ -21,8 +21,8 @@ CHIP=stm32f0
 
 ###################################
 CROSS = arm-none-eabi-
-CC   = $(CROSS)gcc
-LD   = $(CROSS)gcc
+CC   = $(CROSS)gcc $(SPECS)
+LD   = $(CROSS)gcc $(SPECS)
 OBJCOPY   = $(CROSS)objcopy
 
 MCU   = cortex-m0 # -save-temps

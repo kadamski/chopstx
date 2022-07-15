@@ -62,20 +62,16 @@ LLIBDIR   = $(patsubst %,-L%,$(LIBDIR))
 VPATH     = $(sort $(dir $(CSRC)))
 ###
 ifeq ($(EMULATION),)
-ifeq ($(ARCH),riscv32)
-# For now, just for my use of picolibc
-INCDIR += /usr/local/picolibc/riscv64-unknown-elf/include
-LIBDIR += /usr/local/picolibc/riscv64-unknown-elf/lib/rv32imac/ilp32
-#
-MCFLAGS   = -march=rv32imac -mabi=ilp32
-LDFLAGS   = $(MCFLAGS) -nodefaultlibs -nostartfiles -lc -T$(LDSCRIPT) \
-            -Wl,-Map=$(BUILDDIR)/$(PROJECT).map,--cref,--no-warn-mismatch
-else
-MCFLAGS   = -mcpu=$(MCU) -masm-syntax-unified
+SPECS = --specs=picolibc.specs
 LDFLAGS   = $(MCFLAGS) -nostartfiles -T$(LDSCRIPT) \
             -Wl,-Map=$(BUILDDIR)/$(PROJECT).map,--cref,--no-warn-mismatch,--gc-sections
+ifeq ($(ARCH),riscv32)
+MCFLAGS   = -march=rv32imac -mabi=ilp32
+else
+MCFLAGS   = -mcpu=$(MCU) -masm-syntax-unified
 endif
 else
+SPECS =
 MCFLAGS   =
 LDFLAGS   =
 DEFS      += -D_GNU_SOURCE
