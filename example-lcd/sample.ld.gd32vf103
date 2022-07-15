@@ -1,10 +1,20 @@
 /*
  * GD32VF103 memory setup.
  */
+ENTRY(chx_entry)
+
 MEMORY
 {
     flash  : org = 0x08000000, len = 128k
     ram : org = 0x20000000, len = 32k
+}
+
+PHDRS
+{
+	text PT_LOAD;
+	ram_init PT_LOAD;
+	ram PT_LOAD;
+	tls PT_TLS;
 }
 
 __ram_start__           = ORIGIN(ram);
@@ -25,10 +35,11 @@ SECTIONS
       *(.text)
       *(.text.*)
       *(.gnu.linkonce.t.*)
+      KEEP (*(.fini .fini.*))
       *(.rodata)
       *(.rodata.*)
       . = ALIGN(4);
-  } > flash
+  } >flash AT>flash :text
 
   PROVIDE (_etext = .);
   _textdata = _etext;
@@ -43,7 +54,7 @@ SECTIONS
       *(.process_stack.3)
       *(.process_stack.4)
       . = ALIGN(8);
-  } > ram
+  } >ram : ram
 
   .data :
   {
@@ -56,7 +67,7 @@ SECTIONS
       *(.gnu.linkonce.d.*)
       . = ALIGN(8);
       PROVIDE( __global_pointer$ = . + 0x800);
-      *(.sdata .sdata.*)
+      *(.sdata .sdata.* .sdata2.*)
       *(.gnu.linkonce.s.*)
       . = ALIGN(8);
       *(.srodata.cst16)
@@ -65,7 +76,7 @@ SECTIONS
       *(.srodata.cst2)
       *(.srodata .srodata.*)
 
-  } > ram AT > flash
+  } > ram AT>flash :ram_init
 
   . = ALIGN(4);
   PROVIDE(_edata = .);
@@ -79,7 +90,7 @@ SECTIONS
       *(.gnu.linkonce.b.*)
       *(COMMON)
       . = ALIGN(4);
-  } > ram
+  } > ram AT>ram : ram
 
   . = ALIGN(8);
 

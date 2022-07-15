@@ -29,8 +29,8 @@ USE_USB = yes
 ###################################
 ### CROSS = arm-none-eabi-
 CROSS = riscv64-unknown-elf-
-CC   = $(CROSS)gcc
-LD   = $(CROSS)gcc
+CC   = $(CROSS)gcc $(SPECS)
+LD   = $(CROSS)gcc $(SPECS)
 OBJCOPY   = $(CROSS)objcopy
 
 ### MCU   = cortex-m4

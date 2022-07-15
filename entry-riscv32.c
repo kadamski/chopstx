@@ -1,7 +1,7 @@
 /*
  * entry-riscv32.c - Entry routine when reset.
  *
- * Copyright (C) 2019
+ * Copyright (C) 2019, 2022
  *               Flying Stone Technology
  * Author: NIIBE Yutaka <gniibe@fsij.org>
  *
@@ -34,7 +34,7 @@
  * Startup entry point.
  */
 void __attribute__ ((naked,section(".text.startup.0")))
-entry (void)
+chx_entry (void)
 {
   /* Start at 0x00000000 (alias 0x08000000), interrupt masked */
   asm volatile (
