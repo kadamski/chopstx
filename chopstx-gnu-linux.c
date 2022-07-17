@@ -2,7 +2,7 @@
  * chopstx-gnu-linux.c - Threads and only threads: Arch specific code
  *                       for GNU/Linux emulation
  *
- * Copyright (C) 2017, 2018, 2019, 2021 Flying Stone Technology
+ * Copyright (C) 2017, 2018, 2019, 2021, 2022 Flying Stone Technology
  * Author: NIIBE Yutaka <gniibe@fsij.org>
  *
  * This file is a part of Chopstx, a thread library for embedded.
@@ -40,6 +40,7 @@
 #include <unistd.h>
 #include <ucontext.h>
 #include <signal.h>
+#include <stdlib.h>
 #include <sys/time.h>
 
 static struct chx_thread *running;

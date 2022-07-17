@@ -8,6 +8,9 @@
 	environment.
 	* chopstx.c: Use stddef.h, not stdlib.h and string.h.
 
+	For hosted environment.
+	* chopstx-gnu-linux.c: Include <stdlib.h>
+
 2022-07-15  NIIBE Yutaka  <gniibe@fsij.org>
 
 	* rules.mk: Add definition of SPECS for picolibc.
