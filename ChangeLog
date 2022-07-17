@@ -3,6 +3,11 @@
 	* entry-cortex-m.c (chx_entry): Change the name.
 	* example-fsm-55/reset.c (reset): Follow the change.
 
+	Fix for freestanding environment.
+	* chopstx.h (memcpy, memmove, memset): Macros for freestanding
+	environment.
+	* chopstx.c: Use stddef.h, not stdlib.h and string.h.
+
 2022-07-15  NIIBE Yutaka  <gniibe@fsij.org>
 
 	* rules.mk: Add definition of SPECS for picolibc.

@@ -64,7 +64,7 @@ VPATH     = $(sort $(dir $(CSRC)))
 ifeq ($(EMULATION),)
 SPECS = --specs=picolibc.specs
 LDFLAGS   = $(MCFLAGS) -nostartfiles -T$(LDSCRIPT) \
-            -Wl,-Map=$(BUILDDIR)/$(PROJECT).map,--cref,--no-warn-mismatch,--gc-sections
+    -Wl,-Map=$(BUILDDIR)/$(PROJECT).map,--cref,--no-warn-mismatch,--gc-sections
 ifeq ($(ARCH),riscv32)
 MCFLAGS   = -march=rv32imac -mabi=ilp32
 else

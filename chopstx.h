@@ -27,6 +27,15 @@
  *
  */
 
+#if __STDC_HOSTED__ == 0
+/* Freestanding environment.  */
+#define memcpy(dst,src,n) __builtin_memcpy(dst,src,n)
+#define memmove(dst,src,n) __builtin_memmove(dst,src,n)
+#define memset(dst,c,n) __builtin_memset(dst,c,n)
+#else
+#include <string.h>
+#endif
+
 struct chx_qh {
   struct chx_qh *next, *prev;
 };
