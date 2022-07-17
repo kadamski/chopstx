@@ -25,7 +25,7 @@ reset (void)
 		"bics	r0, r0, r1\n\t"
 		"ldr	r2, [r0]\n\t"
 		"msr	MSP, r2\n\t"	/* Main (exception handler) stack. */
-		"b	entry\n\t"
+		"b	chx_entry\n\t"
 		: /* no output */ : /* no input */ : "memory");
   /* Never reach here. */
 }

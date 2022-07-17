@@ -1,7 +1,7 @@
 /*
  * entry-cortex-m.c - Entry routine when reset and interrupt vectors.
  *
- * Copyright (C) 2013, 2014, 2015, 2016, 2017, 2019, 2021
+ * Copyright (C) 2013, 2014, 2015, 2016, 2017, 2019, 2021, 2022
  *               Flying Stone Technology
  * Author: NIIBE Yutaka <gniibe@fsij.org>
  *
@@ -109,7 +109,7 @@ uint32_t vectors_in_ram[48];
  */
 STATIC_ENTRY __attribute__ ((naked,section(".text.startup.0")))
 void
-entry (void)
+chx_entry (void)
 {
   asm volatile ("bl	clock_init\n\t"
 		/* Clear BSS section.  */
@@ -174,7 +174,7 @@ typedef void (*handler)(void);
 
 handler vector_table[] __attribute__ ((section(".startup.vectors"))) = {
   (handler)(&__main_stack_end__ - 32),
-  entry,
+  chx_entry,
   nmi,		/* nmi */
   hard_fault,		/* hard fault */
   /* 0x10 */

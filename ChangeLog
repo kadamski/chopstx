@@ -1,3 +1,8 @@
+2022-07-17  NIIBE Yutaka  <gniibe@fsij.org>
+
+	* entry-cortex-m.c (chx_entry): Change the name.
+	* example-fsm-55/reset.c (reset): Follow the change.
+
 2022-07-15  NIIBE Yutaka  <gniibe@fsij.org>
 
 	* rules.mk: Add definition of SPECS for picolibc.
