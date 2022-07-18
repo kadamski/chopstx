@@ -1,6 +1,17 @@
 NEWS - Noteworthy changes
 
 
+* Major changes in Chopstx 2.4
+
+  Released 2022-07-18
+
+** Fix for embedded: Adoption of picolibc in rules.mk
+
+For convenience, use of picolibc for embedded targets in rules.mk is
+supported.  To do so, users need to update CC and LD in Makefile to
+have SPECS.  See example-fsm-55/Makefile and example-lcd/Makefile.
+
+
 * Major changes in Chopstx 2.3
 
   Released 2021-10-12

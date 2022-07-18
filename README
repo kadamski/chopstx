@@ -1,6 +1,6 @@
 Chopstx - Threads and only Threads
-							 Version 2.3
-							  2021-10-12
+							 Version 2.4
+							  2022-07-18
 							Niibe Yutaka
 					     Flying Stone Technology
 
@@ -28,8 +28,17 @@ Note that this library is _not_ related to the hand game:
     https://en.wikipedia.org/wiki/Chopsticks_(hand_game)
 
 Thanks to Yao Wei and Enrico Zini for giving me an opportunity
-visiting the wiki page above in Debconf Taiwan, when my children were
-playing the game.
+visiting the wiki page above in Debconf Taiwan 2018, when my children
+were playing the game.
+
+
+Prerequisite
+============
+
+Chopstx assumes use of GCC.  Chopstx can be used with no libc
+(freestanding environment) by using -ffreestanding option of GCC.
+Note that GCC requires the freestanding environment provide 'memcpy',
+'memmove', 'memset' and 'memcmp'.
 
 
 License

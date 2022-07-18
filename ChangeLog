@@ -1,3 +1,8 @@
+2022-07-18  NIIBE Yutaka  <gniibe@fsij.org>
+
+	* VERSION: 2.4
+	* doc/chopstx.texi (VERSION): 2.4.
+
 2022-07-17  NIIBE Yutaka  <gniibe@fsij.org>
 
 	* entry-cortex-m.c (chx_entry): Change the name.
