@@ -415,9 +415,10 @@ chx_timer_expired (void)
     chx_systick_reload (0);
   else
     {
-      uint32_t next_tick = tp->v;
+      uint32_t next_tick;
 
       chx_spin_lock (&tp->lock);
+      next_tick = tp->v;
       tp->v = (uintptr_t)0;
       chx_ready_enqueue (tp);
       if (tp == running)	/* tp->flag_sched_rr == 1 */
@@ -856,10 +857,17 @@ chopstx_create (uint32_t flags_and_prio,
 
   chx_cpu_sched_lock ();
   chx_ready_enqueue (tp);
+  chx_spin_lock (&running->lock);
   if (tp->prio > running->prio)
-    chx_sched (CHX_YIELD);
+    {
+      chx_spin_unlock (&running->lock);
+      chx_sched (CHX_YIELD);
+    }
   else
-    chx_cpu_sched_unlock ();
+    {
+      chx_spin_unlock (&running->lock);
+      chx_cpu_sched_unlock ();
+    }
 
   return (chopstx_t)tp;
 }
@@ -1021,8 +1029,10 @@ chopstx_mutex_lock (chopstx_mutex_t *mutex)
 	{
 	  /* The mutex is acquired.  */
 	  m->owner = tp;
+	  chx_spin_lock (&tp->lock);
 	  m->list = tp->mutex_list;
 	  tp->mutex_list = m;
+	  chx_spin_unlock (&tp->lock);
 	  chx_spin_unlock (&m->lock);
 	  chx_cpu_sched_unlock ();
 	  break;
@@ -1719,7 +1729,7 @@ chopstx_poll (uint32_t *usec_p, int n, struct chx_poll_head *const pd_array[])
     }
   else if (usec_p == NULL)
     {
-      chx_spin_unlock (&running->lock);
+      chx_spin_lock (&running->lock);
       if (running->flag_sched_rr)
 	chx_timer_dequeue (running);
 
