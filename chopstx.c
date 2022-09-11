@@ -602,6 +602,7 @@ chx_sched (uint32_t yield)
     }
 
   tp = chx_ready_pop ();
+  chx_spin_lock (&tp->lock);
   return voluntary_context_switch (tp);
 }
 

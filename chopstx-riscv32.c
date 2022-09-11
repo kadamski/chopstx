@@ -489,6 +489,7 @@ chx_idle (void)
 }
 
 
+/* Called with tp->lock held, resume with ->lock released.  */
 static uintptr_t
 voluntary_context_switch (struct chx_thread *tp_next)
 {
