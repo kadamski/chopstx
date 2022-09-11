@@ -372,7 +372,17 @@ chx_timer_dequeue (struct chx_thread *tp)
   struct chx_qh *q_prev;
   uint32_t ticks_remained;
 
+  chx_spin_unlock (&tp->lock);
+
   chx_spin_lock (&q_timer.lock);
+  chx_spin_lock (&tp->lock);
+  if (tp->parent != &q_timer.q)
+    {
+      chx_spin_unlock (&tp->lock);
+      chx_spin_unlock (&q_timer.lock);
+      return 1;
+    }
+
   ticks_remained = chx_systick_get ();
   q_prev = tp->q.prev;
   if (q_prev == &q_timer.q)
