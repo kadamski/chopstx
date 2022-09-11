@@ -485,13 +485,12 @@ chx_timer_expired (void)
     }
   else
     {
-      int check = 0;
+      chopstx_prio_t prio_running;
 
       chx_spin_lock (&running->lock);
-      if ((uint16_t)running->prio < prio)
-	check = 1;
+      prio_running = running->prio;
       chx_spin_unlock (&running->lock);
-      if (check)
+      if ((uint16_t)prio_running < prio)
 	goto pop;
     }
 
@@ -520,6 +519,7 @@ chx_recv_irq (uint32_t irq_num)
     {
       struct chx_thread *running = chx_running ();
       struct chx_px *px = (struct chx_px *)q;
+      chopstx_prio_t prio_px = px->master->prio;
 
       ll_dequeue ((struct chx_pq *)q);
       chx_wakeup ((struct chx_pq *)q);
@@ -529,12 +529,11 @@ chx_recv_irq (uint32_t irq_num)
 	return chx_ready_pop ();
       else
 	{
-	  int check = 0;
+	  chopstx_prio_t prio_running;
 	  chx_spin_lock (&running->lock);
-	  if (running->prio < px->master->prio)
-	    check = 1;
+	  prio_running = running->prio;
 	  chx_spin_unlock (&running->lock);
-	  if (check)
+	  if (prio_running < prio_px)
 	    goto pop;
 	}
     }
