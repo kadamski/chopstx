@@ -189,6 +189,7 @@ ll_dequeue (struct chx_pq *pq)
   pq->q.next->prev = pq->q.prev;
   pq->q.prev->next = pq->q.next;
   pq->q.prev = pq->q.next = &pq->q;
+  pq->parent = NULL;
   return pq;
 }
 
