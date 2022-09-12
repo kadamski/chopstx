@@ -344,10 +344,12 @@ chx_timer_insert (struct chx_thread *tp, uint32_t usec)
     {
       if (ticks < next_ticks)
 	{
+	  struct chx_pq *p = (struct chx_pq *)q;
+
 	  tp->parent = &q_timer.q;
-	  chx_spin_lock (&q->lock);
+	  chx_spin_lock (&p->lock);
 	  ll_insert (&tp->q, q);
-	  chx_spin_unlock (&q->lock);
+	  chx_spin_unlock (&p->lock);
 	  chx_set_timer (tp->q.prev, ticks);
 	  chx_set_timer (&tp->q, (next_ticks - ticks));
 	  break;
