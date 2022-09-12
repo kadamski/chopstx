@@ -776,7 +776,6 @@ chx_mutex_unlock (chopstx_mutex_t *mutex)
   struct chx_thread *tp;
   struct chx_thread *running = chx_running ();
 
-  chx_spin_lock (&mutex->lock);
   chx_spin_lock (&running->lock);
 
   mutex->owner = NULL;
@@ -784,7 +783,6 @@ chx_mutex_unlock (chopstx_mutex_t *mutex)
   mutex->list = NULL;
 
   tp = (struct chx_thread *)ll_pop (&mutex->q);
-  chx_spin_unlock (&mutex->lock);
   if (!tp)
     {
       chx_spin_unlock (&running->lock);
