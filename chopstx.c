@@ -509,11 +509,15 @@ chx_recv_irq (uint32_t irq_num)
     {
       struct chx_pq *p = (struct chx_pq *)q;
 
+      chx_spin_lock (&p->lock);
       if (p->v == irq_num)
-	/* should be one at most.  */
-	break;
+	{
+	  /* should be one at most.  */
+	  chx_spin_unlock (&p->lock);
+	  break;
+	}
+      chx_spin_unlock (&p->lock);
     }
-  chx_spin_unlock (&q_intr.lock);
 
   if (q != &q_intr.q)
     {
@@ -526,7 +530,10 @@ chx_recv_irq (uint32_t irq_num)
 
       if (running == NULL)
       pop:
-	return chx_ready_pop ();
+	{
+	  chx_spin_unlock (&q_intr.lock);
+	  return chx_ready_pop ();
+	}
       else
 	{
 	  chopstx_prio_t prio_running;
@@ -537,6 +544,7 @@ chx_recv_irq (uint32_t irq_num)
 	    goto pop;
 	}
     }
+  chx_spin_unlock (&q_intr.lock);
 
   return NULL;
 }
