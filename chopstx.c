@@ -272,7 +272,10 @@ chx_ready_pop (void)
   chx_spin_lock (&q_ready.lock);
   tp = (struct chx_thread *)ll_pop (&q_ready.q);
   if (tp)
-    tp->state = THREAD_RUNNING;
+    {
+      chx_spin_lock (&tp->lock);
+      tp->state = THREAD_RUNNING;
+    }
   chx_spin_unlock (&q_ready.lock);
 
   if (tp && tp->flag_sched_rr)
@@ -280,6 +283,7 @@ chx_ready_pop (void)
       chx_spin_lock (&q_timer.lock);
       chx_timer_insert (tp, PREEMPTION_USEC);
       chx_spin_unlock (&q_timer.lock);
+      chx_spin_unlock (&tp->lock);
     }
   return tp;
 }
@@ -338,20 +342,24 @@ chx_timer_insert (struct chx_thread *tp, uint32_t usec)
 
   for (q = q_timer.q.next; q != &q_timer.q; q = q->next)
     {
-      struct chx_pq *p = (struct chx_pq *)q;
-
       if (ticks < next_ticks)
 	{
 	  tp->parent = &q_timer.q;
+	  chx_spin_lock (&q->lock);
 	  ll_insert (&tp->q, q);
+	  chx_spin_unlock (&q->lock);
 	  chx_set_timer (tp->q.prev, ticks);
 	  chx_set_timer (&tp->q, (next_ticks - ticks));
 	  break;
 	}
       else
 	{
+	  struct chx_pq *p = (struct chx_pq *)q;
+
 	  ticks -= next_ticks;
+	  chx_spin_lock (&p->lock);
 	  next_ticks = p->v;
+	  chx_spin_unlock (&p->lock);
 	}
     }
 
@@ -402,13 +410,18 @@ chx_timer_dequeue (struct chx_thread *tp)
 	{
 	  struct chx_pq *p = (struct chx_pq *)q;
 
+	  chx_spin_lock (&p->lock);
 	  ticks_remained += p->v;
+	  chx_spin_unlock (&p->lock);
 	}
 
+      chx_spin_lock (&tp_prev->lock);
       tp_prev->v += tp->v;
+      chx_spin_unlock (&tp_prev->lock);
     }
   ll_dequeue ((struct chx_pq *)tp);
   tp->v = 0;
+  chx_spin_unlock (&tp->lock);
   chx_spin_unlock (&q_timer.lock);
   return ticks_remained;
 }
@@ -734,12 +747,15 @@ chx_exit (void *retval)
 	{
 	  struct chx_pq *p = (struct chx_pq *)q;
 
+	  chx_spin_lock (&p->lock);
 	  if (p->v == (uintptr_t)running)
 	    {			/* should be one at most. */
 	      ll_dequeue (p);
 	      chx_wakeup (p);
+	      chx_spin_unlock (&p->lock);
 	      break;
 	    }
+	  chx_spin_unlock (&p->lock);
 	}
       chx_spin_unlock (&q_join.lock);
     }
@@ -1186,7 +1202,11 @@ chopstx_cond_signal (chopstx_cond_t *cond)
   chx_spin_lock (&cond->lock);
   p = ll_pop (&cond->q);
   if (p)
-    yield = chx_wakeup (p);
+    {
+      chx_spin_lock (&p->lock);
+      yield = chx_wakeup (p);
+      chx_spin_unlock (&p->lock);
+    }
   chx_spin_unlock (&cond->lock);
   if (yield)
     chx_sched (CHX_YIELD);
@@ -1210,7 +1230,11 @@ chopstx_cond_broadcast (chopstx_cond_t *cond)
   chx_cpu_sched_lock ();
   chx_spin_lock (&cond->lock);
   while ((p = ll_pop (&cond->q)))
-    yield |= chx_wakeup (p);
+    {
+      chx_spin_lock (&p->lock);
+      yield |= chx_wakeup (p);
+      chx_spin_unlock (&p->lock);
+    }
   chx_spin_unlock (&cond->lock);
   if (yield)
     chx_sched (CHX_YIELD);
