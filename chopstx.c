@@ -275,16 +275,15 @@ chx_ready_pop (void)
     {
       chx_spin_lock (&tp->lock);
       tp->state = THREAD_RUNNING;
-    }
-  chx_spin_unlock (&q_ready.lock);
-
-  if (tp && tp->flag_sched_rr)
-    {
-      chx_spin_lock (&q_timer.lock);
-      chx_timer_insert (tp, PREEMPTION_USEC);
-      chx_spin_unlock (&q_timer.lock);
+      if (tp->flag_sched_rr)
+	{
+	  chx_spin_lock (&q_timer.lock);
+	  chx_timer_insert (tp, PREEMPTION_USEC);
+	  chx_spin_unlock (&q_timer.lock);
+	}
       chx_spin_unlock (&tp->lock);
     }
+  chx_spin_unlock (&q_ready.lock);
   return tp;
 }
 
@@ -741,7 +740,7 @@ chx_exit (void *retval)
   struct chx_thread *running = chx_running ();
 
   chx_cpu_sched_lock ();
-  chx_spin_unlock (&running->lock);
+  chx_spin_lock (&running->lock);
   if (running->flag_join_req)
     {		       /* wake up a thread which requests to join */
       chx_spin_lock (&q_join.lock);
