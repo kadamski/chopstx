@@ -1456,10 +1456,12 @@ chopstx_join (chopstx_t thd, void **ret)
   chopstx_testcancel ();
 
   chx_cpu_sched_lock ();
+  chx_spin_lock (&q_join.lock);
   chx_spin_lock (&tp->lock);
   if (tp->flag_detached)
     {
       chx_spin_unlock (&tp->lock);
+      chx_spin_unlock (&q_join.lock);
       chx_cpu_sched_unlock ();
       chx_fatal (CHOPSTX_ERR_JOIN);
     }
@@ -1468,15 +1470,15 @@ chopstx_join (chopstx_t thd, void **ret)
     {
       struct chx_thread *tp0 = tp;
 
-      chx_spin_lock (&running->lock);
+      tp->flag_join_req = 1;
+      chx_spin_unlock (&tp->lock);
 
+      chx_spin_lock (&running->lock);
       if (running->flag_sched_rr)
 	chx_timer_dequeue (running);
-      chx_spin_lock (&q_join.lock);
       ll_prio_enqueue ((struct chx_pq *)running, &q_join.q);
       running->v = (uintptr_t)tp;
       running->state = THREAD_WAIT_EXIT;
-      tp->flag_join_req = 1;
 
       /* Priority inheritance.  */
       tp0 = tp;
@@ -1501,7 +1503,11 @@ chopstx_join (chopstx_t thd, void **ret)
       r = chx_sched (CHX_SLEEP);
     }
   else
-    chx_cpu_sched_unlock ();
+    {
+      chx_spin_unlock (&tp->lock);
+      chx_spin_unlock (&q_join.lock);
+      chx_cpu_sched_unlock ();
+    }
 
   if (r < 0)
     chopstx_exit (CHOPSTX_CANCELED);
@@ -1526,10 +1532,15 @@ chx_join_hook (struct chx_px *px, struct chx_poll_head *pd)
   struct chx_thread *tp = (struct chx_thread *)pj->thd;
 
   chopstx_testcancel ();
+
   chx_cpu_sched_lock ();
+  chx_spin_lock (&q_join.lock);
+  chx_spin_lock (&tp->lock);
 
   if (tp->flag_detached)
     {
+      chx_spin_unlock (&tp->lock);
+      chx_spin_unlock (&q_join.lock);
       chx_cpu_sched_unlock ();
       chx_fatal (CHOPSTX_ERR_JOIN);
     }
@@ -1547,11 +1558,11 @@ chx_join_hook (struct chx_px *px, struct chx_poll_head *pd)
        */
       pj->ready = 0;
       px->v = (uintptr_t)tp;
-      chx_spin_lock (&q_join.lock);
       ll_prio_enqueue ((struct chx_pq *)px, &q_join.q);
-      chx_spin_unlock (&q_join.lock);
       tp->flag_join_req = 1;
     }
+  chx_spin_unlock (&tp->lock);
+  chx_spin_unlock (&q_join.lock);
   chx_cpu_sched_unlock ();
 }
 
