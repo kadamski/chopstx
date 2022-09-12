@@ -521,27 +521,11 @@ chx_recv_irq (uint32_t irq_num)
 
   if (q != &q_intr.q)
     {
-      struct chx_thread *running = chx_running ();
-      struct chx_px *px = (struct chx_px *)q;
-      chopstx_prio_t prio_px = px->master->prio;
-
       ll_dequeue ((struct chx_pq *)q);
-      chx_wakeup ((struct chx_pq *)q);
-
-      if (running == NULL)
-      pop:
+      if (chx_wakeup ((struct chx_pq *)q))
 	{
 	  chx_spin_unlock (&q_intr.lock);
 	  return chx_ready_pop ();
-	}
-      else
-	{
-	  chopstx_prio_t prio_running;
-	  chx_spin_lock (&running->lock);
-	  prio_running = running->prio;
-	  chx_spin_unlock (&running->lock);
-	  if (prio_running < prio_px)
-	    goto pop;
 	}
     }
   chx_spin_unlock (&q_intr.lock);
