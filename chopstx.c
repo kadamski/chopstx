@@ -220,8 +220,28 @@ ll_pop (struct chx_qh *q)
 {
   if (q == q->next)
     return NULL;
+  else
+    {
+      struct chx_pq *pq = (struct chx_pq *)q->next;
+      struct chx_qh *parent;
+      struct chx_qh *prev;
+      struct chx_qh *next;
 
-  return ll_dequeue ((struct chx_pq *)q->next);
+      chx_spin_lock (&pq->lock);
+      parent = pq->parent;
+      prev = pq->q.prev;
+      next = pq->q.next;
+
+      if (next != parent)
+	chx_spin_lock (&((struct chx_pq *)next)->lock);
+      next->prev = prev;
+      if (next != parent)
+	chx_spin_unlock (&((struct chx_pq *)next)->lock);
+      prev->next = next;
+      pq->q.prev = pq->q.next = &pq->q;
+      pq->parent = NULL;
+      return pq;
+    }
 }
 
 static void
@@ -285,7 +305,6 @@ chx_ready_pop (void)
   tp = (struct chx_thread *)ll_pop (&q_ready.q);
   if (tp)
     {
-      chx_spin_lock (&tp->lock);
       tp->state = THREAD_RUNNING;
       if (tp->flag_sched_rr)
 	{
@@ -456,7 +475,6 @@ chx_timer_expired (void)
     {
       uint32_t next_tick;
 
-      chx_spin_lock (&tp->lock);
       next_tick = tp->v;
       tp->v = (uintptr_t)0;
       chx_ready_enqueue (tp);
@@ -830,7 +848,6 @@ chx_mutex_unlock (chopstx_mutex_t *mutex)
 
       newprio = running->prio_orig;
 
-      chx_spin_lock (&tp->lock);
       tp->v = (uintptr_t)0;
       curprio = tp->prio;
       chx_ready_enqueue (tp);
@@ -1226,7 +1243,6 @@ chopstx_cond_signal (chopstx_cond_t *cond)
   p = ll_pop (&cond->q);
   if (p)
     {
-      chx_spin_lock (&p->lock);
       yield = chx_wakeup (p);
       chx_spin_unlock (&p->lock);
     }
@@ -1254,7 +1270,6 @@ chopstx_cond_broadcast (chopstx_cond_t *cond)
   chx_spin_lock (&cond->lock);
   while ((p = ll_pop (&cond->q)))
     {
-      chx_spin_lock (&p->lock);
       yield |= chx_wakeup (p);
       chx_spin_unlock (&p->lock);
     }
