@@ -366,11 +366,11 @@ chx_set_timer (struct chx_qh *q, uint32_t ticks)
 static struct chx_thread *
 chx_timer_insert (struct chx_thread *tp, uint32_t usec)
 {
-  struct chx_qh *q;
+  struct chx_qh *q, *q_next;
   uint32_t ticks = usec_to_ticks (usec);
   uint32_t next_ticks = chx_systick_get ();
 
-  for (q = q_timer.q.next; q != &q_timer.q; q = q->next)
+  for (q = q_timer.q.next; q != &q_timer.q; q = q_next)
     {
       if (ticks < next_ticks)
 	{
@@ -390,6 +390,7 @@ chx_timer_insert (struct chx_thread *tp, uint32_t usec)
 
 	  ticks -= next_ticks;
 	  chx_spin_lock (&p->lock);
+	  q_next = q->next;
 	  next_ticks = p->v;
 	  chx_spin_unlock (&p->lock);
 	}
@@ -436,15 +437,16 @@ chx_timer_dequeue (struct chx_thread *tp)
   else
     {
       struct chx_thread *tp_prev = (struct chx_thread *)q_prev;
-      struct chx_qh *q;
+      struct chx_qh *q, *q_next;
 
-      for (q = q_timer.q.next; q != &q_timer.q; q = q->next)
+      for (q = q_timer.q.next; q != &q_timer.q; q = q_next)
 	{
 	  struct chx_pq *p = (struct chx_pq *)q;
 
 	  if ((struct chx_thread *)p != tp)
 	    chx_spin_lock (&p->lock);
 	  ticks_remained += p->v;
+	  q_next = q->next;
 	  if ((struct chx_thread *)p != tp)
 	    chx_spin_unlock (&p->lock);
 	}
@@ -549,11 +551,11 @@ chx_timer_expired (void)
 static struct chx_thread *
 chx_recv_irq (uint32_t irq_num)
 {
-  struct chx_qh *q;
+  struct chx_qh *q, *q_next;
 
   chx_disable_intr (irq_num);
   chx_spin_lock (&q_intr.lock);
-  for (q = q_intr.q.next; q != &q_intr.q; q = q->next)
+  for (q = q_intr.q.next; q != &q_intr.q; q = q_next)
     {
       struct chx_pq *p = (struct chx_pq *)q;
 
@@ -561,6 +563,7 @@ chx_recv_irq (uint32_t irq_num)
       if (p->v == irq_num)
 	/* should be one at most.  */
 	break;
+      q_next = q->next;
       chx_spin_unlock (&p->lock);
     }
 
@@ -777,7 +780,7 @@ chx_wakeup (struct chx_pq *pq)
 static void __attribute__((noreturn))
 chx_exit (void *retval)
 {
-  struct chx_qh *q;
+  struct chx_qh *q, *q_next;
   struct chx_thread *running = chx_running ();
 
   chx_cpu_sched_lock ();
@@ -785,7 +788,7 @@ chx_exit (void *retval)
   if (running->flag_join_req)
     {		       /* wake up a thread which requests to join */
       chx_spin_lock (&q_join.lock);
-      for (q = q_join.q.next; q != &q_join.q; q = q->next)
+      for (q = q_join.q.next; q != &q_join.q; q = q_next)
 	{
 	  struct chx_pq *p = (struct chx_pq *)q;
 
@@ -797,6 +800,7 @@ chx_exit (void *retval)
 	      chx_spin_unlock (&p->lock);
 	      break;
 	    }
+	  q_next = q->next;
 	  chx_spin_unlock (&p->lock);
 	}
       chx_spin_unlock (&q_join.lock);
