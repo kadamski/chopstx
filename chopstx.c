@@ -1802,7 +1802,6 @@ chopstx_poll (uint32_t *usec_p, int n, struct chx_poll_head *const pd_array[])
     {
       pd = pd_array[i];
       chx_cpu_sched_lock ();
-      chx_spin_lock (&px[i].lock);
       if (pd->type == CHOPSTX_POLL_COND)
 	{
 	  struct chx_poll_cond *pc = (struct chx_poll_cond *)pd;
@@ -1810,7 +1809,9 @@ chopstx_poll (uint32_t *usec_p, int n, struct chx_poll_head *const pd_array[])
 	  if (pc->ready == 0)
 	    {
 	      chx_spin_lock (&pc->cond->lock);
+	      chx_spin_lock (&px[i].lock);
 	      ll_dequeue ((struct chx_pq *)&px[i]);
+	      chx_spin_unlock (&px[i].lock);
 	      chx_spin_unlock (&pc->cond->lock);
 	    }
 	  else
@@ -1835,7 +1836,9 @@ chopstx_poll (uint32_t *usec_p, int n, struct chx_poll_head *const pd_array[])
 	  if (intr->ready == 0)
 	    {
 	      chx_spin_lock (&q_intr.lock);
+	      chx_spin_lock (&px[i].lock);
 	      ll_dequeue ((struct chx_pq *)&px[i]);
+	      chx_spin_unlock (&px[i].lock);
 	      chx_spin_unlock (&q_intr.lock);
 	      chx_disable_intr (intr->irq_num);
 	    }
@@ -1847,11 +1850,12 @@ chopstx_poll (uint32_t *usec_p, int n, struct chx_poll_head *const pd_array[])
 	  if (pj->ready == 0)
 	    {
 	      chx_spin_lock (&q_join.lock);
+	      chx_spin_lock (&px[i].lock);
 	      ll_dequeue ((struct chx_pq *)&px[i]);
+	      chx_spin_unlock (&px[i].lock);
 	      chx_spin_unlock (&q_join.lock);
 	    }
 	}
-      chx_spin_unlock (&px[i].lock);
       chx_cpu_sched_unlock ();
     }
 
