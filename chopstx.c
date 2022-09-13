@@ -1653,8 +1653,12 @@ chopstx_cancel (chopstx_t thd)
     chx_timer_dequeue (tp);
   else if (tp->state == THREAD_WAIT_EXIT)
     {
+      chx_spin_unlock (&tp->lock);
       chx_spin_lock (&q_join.lock);
-      ll_dequeue ((struct chx_pq *)tp);
+      chx_spin_lock (&tp->lock);
+      if (tp->q.next == &q_join.q)
+	ll_dequeue ((struct chx_pq *)tp);
+      chx_spin_unlock (&tp->lock);
       chx_spin_unlock (&q_join.lock);
     }
   else if (tp->state == THREAD_WAIT_POLL)
