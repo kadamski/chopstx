@@ -559,11 +559,8 @@ chx_recv_irq (uint32_t irq_num)
 
       chx_spin_lock (&p->lock);
       if (p->v == irq_num)
-	{
-	  /* should be one at most.  */
-	  chx_spin_unlock (&p->lock);
-	  break;
-	}
+	/* should be one at most.  */
+	break;
       chx_spin_unlock (&p->lock);
     }
 
@@ -571,7 +568,6 @@ chx_recv_irq (uint32_t irq_num)
     {
       struct chx_pq *p = (struct chx_pq *)q;
 
-      chx_spin_lock (&p->lock);
       ll_dequeue (p);
       if (chx_wakeup (p))
 	{
@@ -586,7 +582,8 @@ chx_recv_irq (uint32_t irq_num)
 	      return tp;
 	    }
 	}
-      chx_spin_unlock (&p->lock);
+      else
+	chx_spin_unlock (&p->lock);
     }
   chx_spin_unlock (&q_intr.lock);
 
