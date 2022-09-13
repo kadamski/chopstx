@@ -411,9 +411,11 @@ chx_timer_dequeue (struct chx_thread *tp)
 	{
 	  struct chx_pq *p = (struct chx_pq *)q;
 
-	  chx_spin_lock (&p->lock);
+	  if (p != tp)
+	    chx_spin_lock (&p->lock);
 	  ticks_remained += p->v;
-	  chx_spin_unlock (&p->lock);
+	  if (p != tp)
+	    chx_spin_unlock (&p->lock);
 	}
 
       chx_spin_lock (&tp_prev->lock);
@@ -433,7 +435,7 @@ chx_timer_expired (void)
 {
   struct chx_thread *tp;
   struct chx_thread *running = chx_running ();
-  uint16_t prio = 0;			/* Use uint16_t here. */
+  uint16_t prio = 0;			/* Use uint16_t here.  */
 
   chx_spin_lock (&q_timer.lock);
   if (!(tp = (struct chx_thread *)ll_pop (&q_timer.q)))
@@ -449,8 +451,7 @@ chx_timer_expired (void)
       if (tp == running)	/* tp->flag_sched_rr == 1 */
 	prio = MAX_PRIO;
       else
-	if ((uint16_t)tp->prio > prio)
-	  prio = (uint16_t)tp->prio;
+	prio = (uint16_t)tp->prio;
       chx_spin_unlock (&tp->lock);
 
       if (ll_empty (&q_timer.q))
@@ -693,10 +694,7 @@ chx_wakeup (struct chx_pq *pq)
       chx_spin_lock (&tp->lock);
       if (tp->state == THREAD_WAIT_POLL)
 	{
-	  if (tp->parent == &q_timer.q)
-	    tp->v = (uintptr_t)chx_timer_dequeue (tp);
-	  else
-	    tp->v = (uintptr_t)1;
+	  tp->v = (uintptr_t)chx_timer_dequeue (tp);
 
 	  chx_ready_enqueue (tp);
 	  if (!running)
@@ -1071,11 +1069,7 @@ chopstx_mutex_lock (chopstx_mutex_t *mutex)
 	  if (tp0->state == THREAD_WAIT_TIME
 	      || tp0->state == THREAD_WAIT_POLL)
 	    {
-	      if (tp0->parent == &q_timer.q)
-		tp0->v = (uintptr_t)chx_timer_dequeue (tp0);
-	      else
-		tp0->v = (uintptr_t)1;
-
+	      tp0->v = (uintptr_t)chx_timer_dequeue (tp0);
 	      chx_ready_enqueue (tp0);
 	      chx_spin_unlock (&tp0->lock);
 	      tp0 = NULL;
