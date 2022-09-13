@@ -186,8 +186,20 @@ ll_empty (struct chx_qh *q)
 static struct chx_pq *
 ll_dequeue (struct chx_pq *pq)
 {
-  pq->q.next->prev = pq->q.prev;
-  pq->q.prev->next = pq->q.next;
+  struct chx_qh *parent = pq->parent;
+  struct chx_qh *prev = pq->q.prev;
+  struct chx_qh *next = pq->q.next;
+
+  if (next != parent)
+    chx_spin_lock (&((struct chx_pq *)next)->lock);
+  next->prev = prev;
+  if (next != parent)
+    chx_spin_unlock (&((struct chx_pq *)next)->lock);
+  if (prev != parent)
+    chx_spin_lock (&((struct chx_pq *)prev)->lock);
+  prev->next = next;
+  if (prev != parent)
+    chx_spin_unlock (&((struct chx_pq *)prev)->lock);
   pq->q.prev = pq->q.next = &pq->q;
   pq->parent = NULL;
   return pq;
