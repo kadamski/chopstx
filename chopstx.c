@@ -1604,9 +1604,11 @@ chx_join_hook (struct chx_px *px, struct chx_poll_head *pd)
        * Register the proxy to wait for TP's exit.
        */
       pj->ready = 0;
-      px->v = (uintptr_t)tp;
       chx_spin_lock (&q_join.lock);
+      chx_spin_lock (&px->lock);
+      px->v = (uintptr_t)tp;
       ll_prio_enqueue ((struct chx_pq *)px, &q_join.q);
+      chx_spin_unlock (&px->lock);
       chx_spin_unlock (&q_join.lock);
       tp->flag_join_req = 1;
     }
