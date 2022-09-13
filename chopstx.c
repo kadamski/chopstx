@@ -1632,10 +1632,7 @@ chopstx_cancel (chopstx_t thd)
       chx_spin_unlock (&q_join.lock);
     }
   else if (tp->state == THREAD_WAIT_POLL)
-    {
-      if (tp->parent == &q_timer.q)
-	chx_timer_dequeue (tp);
-    }
+    chx_timer_dequeue (tp);
   else
     {
       chx_spin_unlock (&tp->lock);
