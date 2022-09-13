@@ -411,10 +411,10 @@ chx_timer_dequeue (struct chx_thread *tp)
 	{
 	  struct chx_pq *p = (struct chx_pq *)q;
 
-	  if (p != tp)
+	  if ((struct chx_thread *)p != tp)
 	    chx_spin_lock (&p->lock);
 	  ticks_remained += p->v;
-	  if (p != tp)
+	  if ((struct chx_thread *)p != tp)
 	    chx_spin_unlock (&p->lock);
 	}
 
@@ -493,8 +493,11 @@ chx_timer_expired (void)
     {
     pop:
       tp = chx_ready_pop ();
-      if (tp != running)
-	return tp;
+      if (tp)
+	{
+	  chx_spin_lock (&tp->lock);
+	  return tp;
+	}
 
       /* When tp->flag_sched_rr == 1, it's possible.	No context switch.  */
     }
@@ -539,8 +542,15 @@ chx_recv_irq (uint32_t irq_num)
       ll_dequeue ((struct chx_pq *)q);
       if (chx_wakeup ((struct chx_pq *)q))
 	{
+	  struct chx_thread *tp;
+
 	  chx_spin_unlock (&q_intr.lock);
-	  return chx_ready_pop ();
+	  tp = chx_ready_pop ();
+	  if (tp)
+	    {
+	      chx_spin_lock (&tp->lock);
+	      return tp;
+	    }
 	}
     }
   chx_spin_unlock (&q_intr.lock);
@@ -609,7 +619,8 @@ chx_sched (uint32_t yield)
     }
 
   tp = chx_ready_pop ();
-  chx_spin_lock (&tp->lock);
+  if (tp)
+    chx_spin_lock (&tp->lock);
   return voluntary_context_switch (tp);
 }
 
