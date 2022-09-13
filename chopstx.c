@@ -539,19 +539,24 @@ chx_recv_irq (uint32_t irq_num)
 
   if (q != &q_intr.q)
     {
-      ll_dequeue ((struct chx_pq *)q);
-      if (chx_wakeup ((struct chx_pq *)q))
+      struct chx_pq *p = (struct chx_pq *)q;
+
+      chx_spin_lock (&p->lock);
+      ll_dequeue (p);
+      if (chx_wakeup (p))
 	{
 	  struct chx_thread *tp;
 
-	  chx_spin_unlock (&q_intr.lock);
+	  chx_spin_unlock (&p->lock);
 	  tp = chx_ready_pop ();
 	  if (tp)
 	    {
+	      chx_spin_unlock (&q_intr.lock);
 	      chx_spin_lock (&tp->lock);
 	      return tp;
 	    }
 	}
+      chx_spin_unlock (&p->lock);
     }
   chx_spin_unlock (&q_intr.lock);
 
