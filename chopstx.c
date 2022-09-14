@@ -849,18 +849,13 @@ chx_mutex_unlock (chopstx_mutex_t *mutex)
   struct chx_thread *tp;
   struct chx_thread *running = chx_running ();
 
-  chx_spin_lock (&running->lock);
-
   mutex->owner = NULL;
   running->mutex_list = mutex->list;
   mutex->list = NULL;
 
   tp = (struct chx_thread *)ll_pop (&mutex->q);
   if (!tp)
-    {
-      chx_spin_unlock (&running->lock);
-      return 0;
-    }
+    return 0;
   else
     {
       uint16_t newprio, curprio;
@@ -894,7 +889,6 @@ chx_mutex_unlock (chopstx_mutex_t *mutex)
 	}
       /* Then, assign it.  */
       running->prio = newprio;
-      chx_spin_unlock (&running->lock);
 
       return curprio;
     }
