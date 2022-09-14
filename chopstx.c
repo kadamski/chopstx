@@ -1301,7 +1301,9 @@ chx_cond_hook (struct chx_px *px, struct chx_poll_head *pd)
       pc->ready = 0;
       chx_cpu_sched_lock ();
       chx_spin_lock (&pc->cond->lock);
+      chx_spin_lock (&px->lock);
       ll_prio_enqueue ((struct chx_pq *)px, &pc->cond->q);
+      chx_spin_unlock (&px->lock);
       chx_spin_unlock (&pc->cond->lock);
       chx_cpu_sched_unlock ();
     }
@@ -1356,7 +1358,9 @@ chx_intr_hook (struct chx_px *px, struct chx_poll_head *pd)
   else
     {
       chx_spin_lock (&q_intr.lock);
+      chx_spin_lock (&px->lock);
       ll_prio_enqueue ((struct chx_pq *)px, &q_intr.q);
+      chx_spin_unlock (&px->lock);
       chx_enable_intr (intr->irq_num);
       chx_spin_unlock (&q_intr.lock);
     }
