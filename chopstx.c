@@ -1098,26 +1098,25 @@ chopstx_mutex_lock (chopstx_mutex_t *mutex)
 
   while (1)
     {
-      chopstx_mutex_t *m = mutex;
       struct chx_thread *tp0;
 
       chx_cpu_sched_lock ();
-      chx_spin_lock (&m->lock);
-      if (m->owner == NULL)
+      chx_spin_lock (&mutex->lock);
+      if (mutex->owner == NULL)
 	{
 	  /* The mutex is acquired.  */
-	  m->owner = tp;
+	  mutex->owner = tp;
 	  chx_spin_lock (&tp->lock);
-	  m->list = tp->mutex_list;
-	  tp->mutex_list = m;
+	  mutex->list = tp->mutex_list;
+	  tp->mutex_list = mutex;
 	  chx_spin_unlock (&tp->lock);
-	  chx_spin_unlock (&m->lock);
+	  chx_spin_unlock (&mutex->lock);
 	  chx_cpu_sched_unlock ();
 	  break;
 	}
 
       /* Priority inheritance.  */
-      tp0 = m->owner;
+      tp0 = mutex->owner;
       while (tp0)
 	{
 	  chx_spin_lock (&tp0->lock);
