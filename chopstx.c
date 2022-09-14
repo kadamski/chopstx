@@ -312,7 +312,6 @@ chx_ready_pop (void)
 	  chx_timer_insert (tp, PREEMPTION_USEC);
 	  chx_spin_unlock (&q_timer.lock);
 	}
-      chx_spin_unlock (&tp->lock);
     }
   chx_spin_unlock (&q_ready.lock);
   return tp;
@@ -524,14 +523,10 @@ chx_timer_expired (void)
   if (running == NULL)
     {
     pop:
-      tp = chx_ready_pop ();
-      if (tp)
-	{
-	  chx_spin_lock (&tp->lock);
-	  return tp;
-	}
+      if ((tp = chx_ready_pop ()))
+	return tp;
 
-      /* When tp->flag_sched_rr == 1, it's possible.	No context switch.  */
+      /* When tp->flag_sched_rr == 1, it's possible.  No context switch.  */
     }
   else
     {
@@ -581,7 +576,6 @@ chx_recv_irq (uint32_t irq_num)
 	  if (tp)
 	    {
 	      chx_spin_unlock (&q_intr.lock);
-	      chx_spin_lock (&tp->lock);
 	      return tp;
 	    }
 	}
@@ -654,8 +648,6 @@ chx_sched (uint32_t yield)
     }
 
   tp = chx_ready_pop ();
-  if (tp)
-    chx_spin_lock (&tp->lock);
   return voluntary_context_switch (tp);
 }
 
