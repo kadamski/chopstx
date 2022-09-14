@@ -1064,8 +1064,11 @@ requeue (struct chx_thread *tp)
     {
       struct chx_mtx *mutex = (struct chx_mtx *)tp->parent;
 
+      chx_spin_unlock (&tp->lock);
       chx_spin_lock (&mutex->lock);
-      ll_prio_enqueue (ll_dequeue ((struct chx_pq *)tp), tp->parent);
+      chx_spin_lock (&tp->lock);
+      if (tp->parent == (struct chx_qh *)mutex)
+	ll_prio_enqueue (ll_dequeue ((struct chx_pq *)tp), tp->parent);
       chx_spin_unlock (&mutex->lock);
       return mutex->owner;
     }
