@@ -1466,6 +1466,8 @@ chopstx_cleanup_pop (int execute)
       if (execute)
 	clp->routine (clp->arg);
     }
+  else
+    chx_spin_unlock (&running->lock);
 }
 
 
@@ -1524,7 +1526,6 @@ chopstx_exit (void *retval)
 int
 chopstx_join (chopstx_t thd, void **ret)
 {
-  struct chx_thread *running = chx_running ();
   struct chx_thread *tp = (struct chx_thread *)thd;
   int r = 0;
 
@@ -1545,6 +1546,7 @@ chopstx_join (chopstx_t thd, void **ret)
 
   if (tp->state != THREAD_EXITED)
     {
+      struct chx_thread *running = chx_running ();
       struct chx_thread *tp0 = tp;
 
       tp->flag_join_req = 1;
@@ -1800,7 +1802,6 @@ chopstx_poll (uint32_t *usec_p, int n, struct chx_poll_head *const pd_array[])
   struct chx_px px[n];
   struct chx_poll_head *pd;
   int r = 0;
-  struct chx_thread *running = chx_running ();
 
   chx_dmb ();
   chopstx_testcancel ();
@@ -1831,6 +1832,8 @@ chopstx_poll (uint32_t *usec_p, int n, struct chx_poll_head *const pd_array[])
     }
   else if (usec_p == NULL)
     {
+      struct chx_thread *running = chx_running ();
+
       chx_spin_lock (&running->lock);
       if (running->flag_sched_rr)
 	chx_timer_dequeue (running);
