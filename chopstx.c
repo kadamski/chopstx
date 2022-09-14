@@ -150,6 +150,7 @@ struct chx_px {			/* inherits PQ */
   struct chx_thread *master;
   uint32_t *counter_p;
   uint16_t *ready_p;
+  struct chx_spinlock *lock_p;
 };
 
 struct chx_thread {		/* inherits PQ */
@@ -750,8 +751,10 @@ chx_wakeup (struct chx_pq *pq)
     {
       struct chx_px *px = (struct chx_px *)pq;
 
+      chx_spin_lock (px->lock_p);
       (*px->counter_p)++;
       *px->ready_p = 1;
+      chx_spin_unlock (px->lock_p);
       tp = px->master;
       chx_spin_lock (&tp->lock);
       if (tp->state == THREAD_WAIT_POLL)
@@ -1314,8 +1317,10 @@ chx_cond_hook (struct chx_px *px, struct chx_poll_head *pd)
   if ((*pc->check) (pc->arg) != 0)
     {
       chx_spin_lock (&px->lock);
+      chx_spin_lock (px->lock_p);
       (*px->counter_p)++;
       *px->ready_p = 1;
+      chx_spin_unlock (px->lock_p);
       chx_spin_unlock (&px->lock);
     }
   else
@@ -1376,7 +1381,9 @@ chx_intr_hook (struct chx_px *px, struct chx_poll_head *pd)
   if (intr->ready)
     {
       chx_spin_lock (&px->lock);
+      chx_spin_lock (px->lock_p);
       (*px->counter_p)++;
+      chx_spin_unlock (px->lock_p);
       chx_spin_unlock (&px->lock);
     }
   else
@@ -1622,8 +1629,10 @@ chx_join_hook (struct chx_px *px, struct chx_poll_head *pd)
   if (tp->state == THREAD_EXITED)
     {
       chx_spin_lock (&px->lock);
+      chx_spin_lock (px->lock_p);
       (*px->counter_p)++;
       *px->ready_p = 1;
+      chx_spin_unlock (px->lock_p);
       chx_spin_unlock (&px->lock);
     }
   else
@@ -1757,7 +1766,8 @@ chopstx_setcancelstate (int cancel_disable)
 }
 
 static void
-chx_proxy_init (struct chx_px *px, uint32_t *cp)
+chx_proxy_init (struct chx_px *px, uint32_t *cp,
+		struct chx_spinlock *lock_p)
 {
   struct chx_thread *running = chx_running ();
 
@@ -1770,6 +1780,7 @@ chx_proxy_init (struct chx_px *px, uint32_t *cp)
   px->master = running;
   px->counter_p = cp;
   px->ready_p = NULL;
+  px->lock_p = lock_p;
   chx_spin_init (&px->lock);
   chx_spin_unlock (&running->lock);
 }
@@ -1790,6 +1801,7 @@ int
 chopstx_poll (uint32_t *usec_p, int n, struct chx_poll_head *const pd_array[])
 {
   uint32_t counter = 0;
+  struct chx_spinlock lock;
   int i;
   struct chx_px px[n];
   struct chx_poll_head *pd;
@@ -1799,8 +1811,9 @@ chopstx_poll (uint32_t *usec_p, int n, struct chx_poll_head *const pd_array[])
   chx_dmb ();
   chopstx_testcancel ();
 
+  chx_spin_init (&lock);
   for (i = 0; i < n; i++)
-    chx_proxy_init (&px[i], &counter);
+    chx_proxy_init (&px[i], &counter, &lock);
 
  again:
   for (i = 0; i < n; i++)
