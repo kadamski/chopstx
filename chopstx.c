@@ -1032,8 +1032,11 @@ requeue (struct chx_thread *tp)
 {
   if (tp->state == THREAD_READY)
     {
+      chx_spin_unlock (&tp->lock);
       chx_spin_lock (&q_ready.lock);
-      ll_prio_enqueue (ll_dequeue ((struct chx_pq *)tp), tp->parent);
+      chx_spin_lock (&tp->lock);
+      if (tp->q.next == &q_ready.q)
+	ll_prio_enqueue (ll_dequeue ((struct chx_pq *)tp), tp->parent);
       chx_spin_unlock (&q_ready.lock);
     }
   else if (tp->state == THREAD_WAIT_MTX)
