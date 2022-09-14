@@ -1056,7 +1056,7 @@ requeue (struct chx_thread *tp)
       chx_spin_unlock (&tp->lock);
       chx_spin_lock (&q_ready.lock);
       chx_spin_lock (&tp->lock);
-      if (tp->q.next == &q_ready.q)
+      if (tp->parent == &q_ready.q)
 	ll_prio_enqueue (ll_dequeue ((struct chx_pq *)tp), tp->parent);
       chx_spin_unlock (&q_ready.lock);
     }
@@ -1687,7 +1687,7 @@ chopstx_cancel (chopstx_t thd)
       chx_spin_unlock (&tp->lock);
       chx_spin_lock (&q_join.lock);
       chx_spin_lock (&tp->lock);
-      if (tp->q.next == &q_join.q)
+      if (tp->parent == &q_join.q)
 	ll_dequeue ((struct chx_pq *)tp);
       chx_spin_unlock (&q_join.lock);
     }
