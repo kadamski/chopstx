@@ -206,11 +206,11 @@ ll_dequeue (struct chx_pq *pq)
 }
 
 static void
-ll_insert (struct chx_qh *q0, struct chx_qh *q)
+ll_insert (struct chx_qh *q0, struct chx_qh *q, struct chx_qh *q_prev)
 {
   q0->next = q;
-  q0->prev = q->prev;
-  q->prev->next = q0;
+  q0->prev = q_prev;
+  q_prev->next = q0;
   q->prev = q0;
 }
 
@@ -247,35 +247,53 @@ ll_pop (struct chx_qh *q)
 static void
 ll_prio_push (struct chx_pq *pq0, struct chx_qh *q0)
 {
-  struct chx_qh *q;
+  struct chx_qh *q, *q_prev, *q_next;
 
-  for (q = q0->next; q != q0; q = q->next)
+  for (q = q0->next; q != q0; q = q_next)
     {
       struct chx_pq *p = (struct chx_pq *)q;
 
+      chx_spin_lock (&((struct chx_pq *)q)->lock);
       if (p->prio <= pq0->prio)
 	break;
+      q_next = q->next;
+      chx_spin_unlock (&((struct chx_pq *)q)->lock);
     }
 
+  q_prev = q->prev;
+  if (q_prev != q0)
+    chx_spin_lock (&((struct chx_pq *)q_prev)->lock);
+  ll_insert (&pq0->q, q, q_prev);
+  if (q_prev != q0)
+    chx_spin_unlock (&((struct chx_pq *)q_prev)->lock);
+  chx_spin_unlock (&((struct chx_pq *)q)->lock);
   pq0->parent = q0;
-  ll_insert (&pq0->q, q);
 }
 
 static void
 ll_prio_enqueue (struct chx_pq *pq0, struct chx_qh *q0)
 {
-  struct chx_qh *q;
+  struct chx_qh *q, *q_prev, *q_next;
 
-  for (q = q0->next; q != q0; q = q->next)
+  for (q = q0->next; q != q0; q = q_next)
     {
       struct chx_pq *p = (struct chx_pq *)q;
 
+      chx_spin_lock (&((struct chx_pq *)q)->lock);
       if (p->prio < pq0->prio)
 	break;
+      q_next = q->next;
+      chx_spin_unlock (&((struct chx_pq *)q)->lock);
     }
 
+  q_prev = q->prev;
+  if (q_prev != q0)
+    chx_spin_lock (&((struct chx_pq *)q_prev)->lock);
+  ll_insert (&pq0->q, q, q_prev);
+  if (q_prev != q0)
+    chx_spin_unlock (&((struct chx_pq *)q_prev)->lock);
+  chx_spin_unlock (&((struct chx_pq *)q)->lock);
   pq0->parent = q0;
-  ll_insert (&pq0->q, q);
 }
 
 
@@ -365,7 +383,7 @@ chx_set_timer (struct chx_qh *q, uint32_t ticks)
 static struct chx_thread *
 chx_timer_insert (struct chx_thread *tp, uint32_t usec)
 {
-  struct chx_qh *q, *q_next;
+  struct chx_qh *q, *q_next, *q_prev;
   uint32_t ticks = usec_to_ticks (usec);
   uint32_t next_ticks = chx_systick_get ();
 
@@ -377,7 +395,12 @@ chx_timer_insert (struct chx_thread *tp, uint32_t usec)
 
 	  tp->parent = &q_timer.q;
 	  chx_spin_lock (&p->lock);
-	  ll_insert (&tp->q, q);
+	  q_prev = q->prev;
+	  if (q_prev != &q_timer.q)
+	    chx_spin_lock (&((struct chx_pq *)q_prev)->lock);
+	  ll_insert (&tp->q, q, q_prev);
+	  if (q_prev != &q_timer.q)
+	    chx_spin_lock (&((struct chx_pq *)q_prev)->lock);
 	  chx_spin_unlock (&p->lock);
 	  chx_set_timer (tp->q.prev, ticks);
 	  chx_set_timer (&tp->q, (next_ticks - ticks));
@@ -397,8 +420,9 @@ chx_timer_insert (struct chx_thread *tp, uint32_t usec)
 
   if (q == &q_timer.q)
     {
-      tp->parent = &q_timer.q;
-      ll_insert (&tp->q, q);
+      tp->parent = q;
+      q_prev = q->prev;
+      ll_insert (&tp->q, q, q_prev);
       chx_set_timer (tp->q.prev, ticks);
       chx_set_timer (&tp->q, 1);	/* Non-zero for the last entry. */
     }
