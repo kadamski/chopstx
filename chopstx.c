@@ -1648,7 +1648,7 @@ chopstx_cancel (chopstx_t thd)
       ll_dequeue ((struct chx_pq *)tp);
       chx_spin_unlock (&cond->lock);
     }
-  else if (tp->state == THREAD_WAIT_TIME)
+  else if (tp->state == THREAD_WAIT_TIME || tp->state == THREAD_WAIT_POLL)
     chx_timer_dequeue (tp);
   else if (tp->state == THREAD_WAIT_EXIT)
     {
@@ -1659,8 +1659,6 @@ chopstx_cancel (chopstx_t thd)
 	ll_dequeue ((struct chx_pq *)tp);
       chx_spin_unlock (&q_join.lock);
     }
-  else if (tp->state == THREAD_WAIT_POLL)
-    chx_timer_dequeue (tp);
   else
     {
       chx_spin_unlock (&tp->lock);
