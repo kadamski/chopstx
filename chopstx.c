@@ -844,10 +844,10 @@ chx_exit (void *retval)
  * Return PRIO of the thread which is waken up.
  */
 static chopstx_prio_t
-chx_mutex_unlock (chopstx_mutex_t *mutex)
+chx_mutex_unlock (chopstx_mutex_t *mutex,
+		  struct chx_thread *running)
 {
   struct chx_thread *tp;
-  struct chx_thread *running = chx_running ();
 
   mutex->owner = NULL;
   running->mutex_list = mutex->list;
@@ -1175,7 +1175,7 @@ chopstx_mutex_unlock (chopstx_mutex_t *mutex)
   chx_cpu_sched_lock ();
   chx_spin_lock (&running->lock);
   chx_spin_lock (&mutex->lock);
-  prio = chx_mutex_unlock (mutex);
+  prio = chx_mutex_unlock (mutex, running);
   chx_spin_unlock (&mutex->lock);
   if (prio > running->prio)
     {
@@ -1214,27 +1214,28 @@ chopstx_cond_init (chopstx_cond_t *cond)
 void
 chopstx_cond_wait (chopstx_cond_t *cond, chopstx_mutex_t *mutex)
 {
-  struct chx_thread *tp = chx_running ();
+  struct chx_thread *running = chx_running ();
   int r;
 
   chopstx_testcancel ();
   chx_cpu_sched_lock ();
-  chx_spin_lock (&tp->lock);
+  chx_spin_lock (&running->lock);
 
   if (mutex)
     {
       chx_spin_lock (&mutex->lock);
-      chx_mutex_unlock (mutex);
+      chx_mutex_unlock (mutex, running);
       chx_spin_unlock (&mutex->lock);
     }
 
-  if (tp->flag_sched_rr)
-    chx_timer_dequeue (tp);
+  if (running->flag_sched_rr)
+    chx_timer_dequeue (running);
+
   chx_spin_lock (&cond->lock);
-  ll_prio_enqueue ((struct chx_pq *)tp, &cond->q);
-  tp->state = THREAD_WAIT_CND;
+  ll_prio_enqueue ((struct chx_pq *)running, &cond->q);
+  running->state = THREAD_WAIT_CND;
   chx_spin_unlock (&cond->lock);
-  chx_spin_unlock (&tp->lock);
+  chx_spin_unlock (&running->lock);
   r = chx_sched (CHX_SLEEP);
 
   if (mutex)
@@ -1507,7 +1508,7 @@ chopstx_exit (void *retval)
 
       chx_cpu_sched_lock ();
       chx_spin_lock (&m->lock);
-      chx_mutex_unlock (m);
+      chx_mutex_unlock (m, running);
       chx_spin_unlock (&m->lock);
       chx_cpu_sched_unlock ();
     }
