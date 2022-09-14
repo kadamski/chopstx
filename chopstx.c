@@ -1683,8 +1683,11 @@ chopstx_cancel (chopstx_t thd)
     {
       struct chx_cond *cond = (struct chx_cond *)tp->parent;
 
+      chx_spin_unlock (&tp->lock);
       chx_spin_lock (&cond->lock);
-      ll_dequeue ((struct chx_pq *)tp);
+      chx_spin_lock (&tp->lock);
+      if (tp->parent == (struct chx_qh *)cond)
+	ll_dequeue ((struct chx_pq *)tp);
       chx_spin_unlock (&cond->lock);
     }
   else if (tp->state == THREAD_WAIT_TIME || tp->state == THREAD_WAIT_POLL)
