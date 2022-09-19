@@ -4,21 +4,8 @@
 
 #include <chopstx.h>
 
-static int
-increasing (int a, int b)
-{
-  return a < b ? 1 : 0;
-}
-
-static int
-decreasing (int a , int b)
-{
-  return a > b ? 1 : 0;
-}
-
 static void
-bbl_sort (int array[], int n,
-	  int (*cmp) (int, int))
+bbl_sort (int array[], int n, int dir)
 {
   int i;
   int new;
@@ -26,7 +13,8 @@ bbl_sort (int array[], int n,
     {
       new = 0;
       for (i = 1; i < n; i++)
-        if (cmp (array[i-1], array[i]))
+	if ((dir < 0 && array[i-1] > array[i])
+	    || (dir > 0 && array[i-1] < array[i]))
           {
             int t = array[i-1];
 
@@ -60,7 +48,7 @@ sem_get (struct sem *sem, int count)
   while (sem->count < count)
     chopstx_cond_wait (&sem->avail, &sem->mutex);
   sem->count -= count;
-  chopstx_mutex_unlock(&sem->mutex);
+  chopstx_mutex_unlock (&sem->mutex);
 }
 
 static void
@@ -72,19 +60,47 @@ sem_put (struct sem *sem, int count)
   chopstx_mutex_unlock (&sem->mutex);
 }
 
-static void
-transpose (int array[], int n)
-{
-  int i, j;
 
-  for (i = 0; i < n; i++)
-    for (j = i + 1; j < n; j++)
-      {
-        int t = array[i * n + j];
-        array[i * n + j] = array[j * n + i];
-        array[j * n + i] = t;
-      }
+struct xchg {
+  chopstx_mutex_t mutex;
+  chopstx_cond_t avail;
+  int v;
+  unsigned int ready;
+};
+
+static void
+xchg_init (struct xchg *xchg)
+{
+  chopstx_mutex_init (&xchg->mutex);
+  chopstx_cond_init (&xchg->avail);
+  xchg->v = 0;
+  xchg->ready = 0;
 }
+
+static int
+xchg_do (struct xchg *xchg, int v)
+{
+  int r;
+
+  chopstx_mutex_lock (&xchg->mutex);
+  if (xchg->ready)
+    {
+      r = xchg->v;
+      xchg->v = v;
+      xchg->ready = 0;
+      chopstx_cond_signal (&xchg->avail);
+    }
+  else
+    {
+      xchg->v = v;
+      xchg->ready = 1;
+      chopstx_cond_wait (&xchg->avail, &xchg->mutex);
+      r = xchg->v;
+    }
+  chopstx_mutex_unlock (&xchg->mutex);
+  return r;
+}
+
 
 static void
 print_matrix (int array[], int n)
@@ -101,45 +117,86 @@ print_matrix (int array[], int n)
   puts ("");
 }
 
+#define N 7
+#define N_N (N*N)
+#define N_NminusNdiv2 ((N*N-N)/2)
+#define ITERATION (32 - 26 +  1)
+/* ((sizeof (int) * 8) - __builtin_clz (N_N)) + 1 */
+
 struct worker_args {
   int row;
-  int n;
   int *array;
+  struct xchg *xchg;
   struct sem *in;
   struct sem *out;
 };
 
-#define N 7
-#define N_N (N*N)
-#define ITERATION (32 - 26 +  1)
-/* ((sizeof (int) * 8) - __builtin_clz (N_N)) + 1 */
+/*
+ When N = 7: 
+
+  -   0   1   2   3   4   5
+  0   -   6   7   8   9  10
+  1   6   -  11  12  13  14
+  2   7  11   -  15  16  17
+  3   8  12  15   -  18  19
+  4   9  13  16  18   -  20
+  5  10  14  17  19  20   -
+ */
+
+static int
+get_port (int row, int col)
+{
+  if (row == col)
+    return -1;
+
+  if (row > col)
+    return get_port (col, row);
+
+  return row * (2*N - row - 3) / 2 + col - 1;
+}
+
 
 static void *
 worker (void *args0)
 {
   struct worker_args *args = args0;
   int row = args->row;
-  int n = args->n;
   int *array = args->array;
   int iter;
 
-  for (iter = 0; iter < ITERATION; iter++)
+  iter = 0;
+  while (1)
     {
-      int (*cmp) (int, int);
+      int i;
+      int dir;
 
       sem_get (args->in, 1);
 
       if ((iter & 1))
-	cmp = decreasing;
+	dir = -1;
       else if ((row & 1))
-	cmp = increasing;
+	dir =  1;
       else
-	cmp = decreasing;
+	dir = -1;
 
-      bbl_sort (&array[row * n], n, cmp);
+      bbl_sort (array, N, dir);
+
+      iter++;
+      if (iter >= ITERATION)
+	break;
+
+      for (i = 0; i < N; i++)
+	{
+	  int port = get_port (row, i);
+
+	  if (port >= 0)
+	    array[i] = xchg_do (&args->xchg[port], array[i]);
+	}
 
       sem_put (args->out, 1);
     }
+
+  sem_put (args->out, 1);
 
   return NULL;
 }
@@ -193,6 +250,8 @@ static const struct thd_table thd_table[7] = {
   { PRIO_THD7, STACK_ADDR_THD7, STACK_SIZE_THD7 },
 };
 
+static struct xchg xchg[N_NminusNdiv2];
+
 #ifdef GNU_LINUX_EMULATION
 #define main emulated_main
 #endif
@@ -220,6 +279,8 @@ main (int argc, const char *argv[])
   (void)argv;
 
   sem_init (&out, 0);
+  for (i = 0; i < N_NminusNdiv2; i++)
+    xchg_init (&xchg[i]);
 
   print_matrix (array, N);
 
@@ -229,8 +290,8 @@ main (int argc, const char *argv[])
 
       sem_init (&in[i], 0);
       args[i].row = i;
-      args[i].array = array;
-      args[i].n = N;
+      args[i].array = &array[i*N];
+      args[i].xchg = xchg;
       args[i].in = &in[i];
       args[i].out = &out;
       tid[i] = chopstx_create (thd->prio, thd->stack_addr,
@@ -246,18 +307,15 @@ main (int argc, const char *argv[])
 
       sem_get (&out, N);
 
-      puts ("");
-      print_matrix (array, N);
-
       iter++;
       if (iter == ITERATION)
 	break;
-
-      transpose (array, N);
     }
 
   for (i = 0; i < N; i++)
     chopstx_join (tid[i], NULL);
 
+  puts ("");
+  print_matrix (array, N);
   return 0;
 }
