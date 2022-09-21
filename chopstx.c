@@ -1066,14 +1066,18 @@ requeue (struct chx_thread *tp)
   else if (tp->state == THREAD_WAIT_MTX)
     {
       struct chx_mtx *mutex = (struct chx_mtx *)tp->parent;
+      struct chx_thread *tp_owner = NULL;
 
       chx_spin_unlock (&tp->lock);
       chx_spin_lock (&mutex->lock);
       chx_spin_lock (&tp->lock);
       if (tp->parent == (struct chx_qh *)mutex)
-	ll_prio_enqueue (ll_dequeue ((struct chx_pq *)tp), tp->parent);
+	{
+	  tp_owner = mutex->owner;
+	  ll_prio_enqueue (ll_dequeue ((struct chx_pq *)tp), tp->parent);
+	}
       chx_spin_unlock (&mutex->lock);
-      return mutex->owner;
+      return tp_owner;
     }
   else if (tp->state == THREAD_WAIT_CND)
     {
@@ -1129,13 +1133,17 @@ chopstx_mutex_lock (chopstx_mutex_t *mutex)
       while (tp0)
 	{
 	  chx_spin_lock (&tp0->lock);
+	  chx_spin_lock (&tp->lock);
 	  if (tp0->prio >= tp->prio)
 	    {
+	      chx_spin_unlock (&tp->lock);
 	      chx_spin_unlock (&tp0->lock);
 	      break;
 	    }
 
 	  tp0->prio = tp->prio;
+	  chx_spin_unlock (&tp->lock);
+
 	  if (tp0->state == THREAD_WAIT_TIME
 	      || tp0->state == THREAD_WAIT_POLL)
 	    {
