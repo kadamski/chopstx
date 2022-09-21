@@ -241,6 +241,7 @@ ll_pop (struct chx_qh *q)
       prev->next = next;
       pq->q.prev = pq->q.next = &pq->q;
       pq->parent = NULL;
+      chx_spin_unlock (&pq->lock);
       return pq;
     }
 }
@@ -713,6 +714,7 @@ chx_init (struct chx_thread *tp)
   chx_spin_init (&q_join.lock);
   q_intr.q.next = q_intr.q.prev = &q_intr.q;
   chx_spin_init (&q_intr.lock);
+  chx_spin_init (&tp->lock);
   tp->q.next = tp->q.prev = &tp->q;
   tp->mutex_list = NULL;
   tp->clp = NULL;
@@ -917,6 +919,7 @@ chopstx_create (uint32_t flags_and_prio,
 
   tp = chopstx_create_arch (stack_addr, stack_size, thread_entry,
 			    arg);
+  chx_spin_init (&tp->lock);
   tp->q.next = tp->q.prev = &tp->q;
   tp->mutex_list = NULL;
   tp->clp = NULL;
