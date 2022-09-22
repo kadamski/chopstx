@@ -241,7 +241,6 @@ ll_pop (struct chx_qh *q)
       prev->next = next;
       pq->q.prev = pq->q.next = &pq->q;
       pq->parent = NULL;
-      chx_spin_unlock (&pq->lock);
       return pq;
     }
 }

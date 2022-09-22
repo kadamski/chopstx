@@ -252,6 +252,7 @@ static void
 preempted_context_switch (struct chx_thread *tp_next)
 {
   struct chx_thread *tp_prev = chx_running ();
+  tcontext_t *tc = &tp_next->tc;
 
   /*
    * The swapcontext implementation may reset sigmask in the
@@ -270,7 +271,8 @@ preempted_context_switch (struct chx_thread *tp_next)
    * mandates holding cpu_sched_lock.
    */
   chx_set_running (tp_next);
-  swapcontext (&tp_prev->tc, &tp_next->tc);
+  chx_spin_unlock (&tp_next->lock);
+  swapcontext (&tp_prev->tc, tc);
 }
 
 
@@ -279,6 +281,8 @@ voluntary_context_switch (struct chx_thread *tp_next)
 {
   struct chx_thread *tp;
   struct chx_thread *tp_prev;
+  tcontext_t *tc;
+  uintptr_t v;
 
   tp_prev = chx_running ();
   if (!tp_next)
@@ -287,17 +291,26 @@ voluntary_context_switch (struct chx_thread *tp_next)
       tp_next = chx_idle ();
       chx_set_running (tp_next);
       if (tp_prev != tp_next)
-	swapcontext (&tp_prev->tc, &tp_next->tc);
+	{
+	  tc = &tp_next->tc;
+	  chx_spin_unlock (&tp_next->lock);
+	  swapcontext (&tp_prev->tc, tc);
+	}
     }
   else
     {
+      tc = &tp_next->tc;
       chx_set_running (tp_next);
-      swapcontext (&tp_prev->tc, &tp_next->tc);
+      chx_spin_unlock (&tp_next->lock);
+      swapcontext (&tp_prev->tc, tc);
     }
   chx_cpu_sched_unlock ();
 
   tp = chx_running ();
-  return tp->v;
+  chx_spin_lock (&tp->lock);
+  v = tp->v;
+  chx_spin_unlock (&tp->lock);
+  return v;
 }
 
 static void __attribute__((__noreturn__))
