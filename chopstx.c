@@ -748,7 +748,6 @@ chx_wakeup (struct chx_pq *pq)
   struct chx_thread *tp;
   struct chx_thread *running = chx_running ();
 
-  chx_spin_lock (&pq->lock);
   if (pq->flag_is_proxy)
     {
       struct chx_px *px = (struct chx_px *)pq;
@@ -791,7 +790,6 @@ chx_wakeup (struct chx_pq *pq)
 	  chx_spin_unlock (&running->lock);
 	}
     }
-  chx_spin_unlock (&pq->lock);
 
   return yield;
 }
@@ -808,6 +806,7 @@ chx_exit (void *retval)
   chx_spin_lock (&running->lock);
   if (running->flag_join_req)
     {		       /* wake up a thread which requests to join */
+      chx_spin_unlock (&running->lock);
       chx_spin_lock (&q_join.lock);
       for (q = q_join.q.next; q != &q_join.q; q = q_next)
 	{
@@ -825,6 +824,7 @@ chx_exit (void *retval)
 	  chx_spin_unlock (&p->lock);
 	}
       chx_spin_unlock (&q_join.lock);
+      chx_spin_lock (&running->lock);
     }
 
   if (running->flag_sched_rr)
