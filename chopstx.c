@@ -920,6 +920,7 @@ chopstx_create (uint32_t flags_and_prio,
   tp = chopstx_create_arch (stack_addr, stack_size, thread_entry,
 			    arg);
   chx_spin_init (&tp->lock);
+  chx_spin_lock (&tp->lock);
   tp->q.next = tp->q.prev = &tp->q;
   tp->mutex_list = NULL;
   tp->clp = NULL;
@@ -939,11 +940,13 @@ chopstx_create (uint32_t flags_and_prio,
   if (tp->prio > running->prio)
     {
       chx_spin_unlock (&running->lock);
+      chx_spin_unlock (&tp->lock);
       chx_sched (CHX_YIELD);
     }
   else
     {
       chx_spin_unlock (&running->lock);
+      chx_spin_unlock (&tp->lock);
       chx_cpu_sched_unlock ();
     }
 
