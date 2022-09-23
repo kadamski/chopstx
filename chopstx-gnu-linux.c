@@ -280,29 +280,31 @@ static uintptr_t
 voluntary_context_switch (struct chx_thread *tp_next)
 {
   struct chx_thread *tp;
-  struct chx_thread *tp_prev;
-  tcontext_t *tc;
+  struct chx_thread *running;
+  tcontext_t *tc_prev, *tc_next;
   uintptr_t v;
 
-  tp_prev = chx_running ();
+  running = chx_running ();
+  tc_prev = &running->tc;
+  chx_spin_unlock (&running->lock);
   if (!tp_next)
     {
       chx_set_running (NULL);
       tp_next = chx_idle ();
-      chx_set_running (tp_next);
-      if (tp_prev != tp_next)
+      if (running != tp_next)
 	{
-	  tc = &tp_next->tc;
+	  tc_next = &tp_next->tc;
+	  chx_set_running (tp_next);
 	  chx_spin_unlock (&tp_next->lock);
-	  swapcontext (&tp_prev->tc, tc);
+	  swapcontext (tc_prev, tc_next);
 	}
     }
   else
     {
-      tc = &tp_next->tc;
+      tc_next = &tp_next->tc;
       chx_set_running (tp_next);
       chx_spin_unlock (&tp_next->lock);
-      swapcontext (&tp_prev->tc, tc);
+      swapcontext (tc_prev, tc_next);
     }
   chx_cpu_sched_unlock ();
 
