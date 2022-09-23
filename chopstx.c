@@ -665,6 +665,8 @@ chx_sched (uint32_t yield)
 
   if (yield)
     {
+      struct chx_thread *running = chx_running ();
+
       if (running->flag_sched_rr)
 	chx_timer_dequeue (running);
       chx_ready_enqueue (running);
@@ -940,6 +942,7 @@ chopstx_create (uint32_t flags_and_prio,
     }
   else
     {
+      chx_spin_unlock (&running->lock);
       chx_spin_unlock (&tp->lock);
       chx_cpu_sched_unlock ();
     }
