@@ -670,9 +670,12 @@ chx_sched (uint32_t yield)
       if (running->flag_sched_rr)
 	chx_timer_dequeue (running);
       chx_ready_enqueue (running);
+      chx_spin_unlock (&running->lock);
+      tp = chx_ready_pop ();
+      chx_spin_lock (&running->lock);
     }
-
-  tp = chx_ready_pop ();
+  else
+    tp = chx_ready_pop ();
   return voluntary_context_switch (tp);
 }
 
