@@ -665,13 +665,9 @@ chx_sched (uint32_t yield)
 
   if (yield)
     {
-      struct chx_thread *running = chx_running ();
-
-      chx_spin_lock (&running->lock);
       if (running->flag_sched_rr)
 	chx_timer_dequeue (running);
       chx_ready_enqueue (running);
-      chx_spin_unlock (&running->lock);
     }
 
   tp = chx_ready_pop ();
@@ -835,7 +831,6 @@ chx_exit (void *retval)
   else
     running->state = THREAD_EXITED;
   running->v = (uintptr_t)retval;
-  chx_spin_unlock (&running->lock);
   chx_sched (CHX_SLEEP);
   /* never comes here. */
   for (;;);
@@ -940,13 +935,11 @@ chopstx_create (uint32_t flags_and_prio,
   chx_spin_lock (&running->lock);
   if (tp->prio > running->prio)
     {
-      chx_spin_unlock (&running->lock);
       chx_spin_unlock (&tp->lock);
       chx_sched (CHX_YIELD);
     }
   else
     {
-      chx_spin_unlock (&running->lock);
       chx_spin_unlock (&tp->lock);
       chx_cpu_sched_unlock ();
     }
@@ -993,7 +986,6 @@ chx_snooze (uint32_t state, uint32_t *usec_p)
   running->state = state;
   chx_timer_insert (running, usec0);
   chx_spin_unlock (&q_timer.lock);
-  chx_spin_unlock (&running->lock);
   r = chx_sched (CHX_SLEEP);
   if (r == 0)
     *usec_p -= usec0;
@@ -1169,7 +1161,6 @@ chopstx_mutex_lock (chopstx_mutex_t *mutex)
 	chx_timer_dequeue (tp);
       ll_prio_enqueue ((struct chx_pq *)tp, &mutex->q);
       tp->state = THREAD_WAIT_MTX;
-      chx_spin_unlock (&tp->lock);
       chx_spin_unlock (&mutex->lock);
       chx_sched (CHX_SLEEP);
     }
@@ -1196,10 +1187,7 @@ chopstx_mutex_unlock (chopstx_mutex_t *mutex)
   prio = chx_mutex_unlock (mutex, running);
   chx_spin_unlock (&mutex->lock);
   if (prio > running->prio)
-    {
-      chx_spin_unlock (&running->lock);
-      chx_sched (CHX_YIELD);
-    }
+    chx_sched (CHX_YIELD);
   else
     {
       chx_spin_unlock (&running->lock);
@@ -1253,7 +1241,6 @@ chopstx_cond_wait (chopstx_cond_t *cond, chopstx_mutex_t *mutex)
   ll_prio_enqueue ((struct chx_pq *)running, &cond->q);
   running->state = THREAD_WAIT_CND;
   chx_spin_unlock (&cond->lock);
-  chx_spin_unlock (&running->lock);
   r = chx_sched (CHX_SLEEP);
 
   if (mutex)
@@ -1286,7 +1273,11 @@ chopstx_cond_signal (chopstx_cond_t *cond)
     }
   chx_spin_unlock (&cond->lock);
   if (yield)
-    chx_sched (CHX_YIELD);
+    {
+      struct chx_thread *running = chx_running ();
+      chx_spin_lock (&running->lock);
+      chx_sched (CHX_YIELD);
+    }
   else
     chx_cpu_sched_unlock ();
 }
@@ -1313,7 +1304,11 @@ chopstx_cond_broadcast (chopstx_cond_t *cond)
     }
   chx_spin_unlock (&cond->lock);
   if (yield)
-    chx_sched (CHX_YIELD);
+    {
+      struct chx_thread *running = chx_running ();
+      chx_spin_lock (&running->lock);
+      chx_sched (CHX_YIELD);
+    }
   else
     chx_cpu_sched_unlock ();
 }
@@ -1600,7 +1595,6 @@ chopstx_join (chopstx_t thd, void **ret)
 	  chx_spin_unlock (&tp0->lock);
 	  tp0 = tp1;
 	}
-      chx_spin_unlock (&running->lock);
       r = chx_sched (CHX_SLEEP);
     }
   else
@@ -1728,7 +1722,6 @@ chopstx_cancel (chopstx_t thd)
   chx_spin_lock (&running->lock);
   if (tp->prio > running->prio)
     {
-      chx_spin_unlock (&running->lock);
       chx_spin_unlock (&tp->lock);
       chx_sched (CHX_YIELD);
     }
@@ -1863,7 +1856,6 @@ chopstx_poll (uint32_t *usec_p, int n, struct chx_poll_head *const pd_array[])
 	chx_timer_dequeue (running);
 
       running->state = THREAD_WAIT_POLL;
-      chx_spin_unlock (&running->lock);
       chx_spin_unlock (&px->lock);
       r = chx_sched (CHX_SLEEP);
     }
@@ -1993,10 +1985,7 @@ chopstx_setpriority (chopstx_prio_t prio_new)
       tp->prio = prio_new;
 
   if (tp->prio < prio_cur)
-    {
-      chx_spin_unlock (&tp->lock);
-      chx_sched (CHX_YIELD);
-    }
+    chx_sched (CHX_YIELD);
   else
     {
       chx_spin_unlock (&tp->lock);
