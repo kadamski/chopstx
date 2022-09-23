@@ -1132,6 +1132,7 @@ chopstx_mutex_lock (chopstx_mutex_t *mutex)
 
       /* Priority inheritance.  */
       tp0 = mutex->owner;
+      chx_spin_unlock (&mutex->lock);
       while (tp0)
 	{
 	  chx_spin_lock (&tp0->lock);
@@ -1165,6 +1166,7 @@ chopstx_mutex_lock (chopstx_mutex_t *mutex)
       chx_spin_lock (&tp->lock);
       if (tp->flag_sched_rr)
 	chx_timer_dequeue (tp);
+      chx_spin_lock (&mutex->lock);
       ll_prio_enqueue ((struct chx_pq *)tp, &mutex->q);
       tp->state = THREAD_WAIT_MTX;
       chx_spin_unlock (&mutex->lock);
