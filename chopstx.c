@@ -1969,7 +1969,7 @@ chopstx_setpriority (chopstx_prio_t prio_new)
   chopstx_prio_t prio_orig, prio_cur;
 
   chx_cpu_sched_lock ();
-  chx_spin_unlock (&tp->lock);
+  chx_spin_lock (&tp->lock);
   prio_orig = tp->prio_orig;
   prio_cur = tp->prio;
 
