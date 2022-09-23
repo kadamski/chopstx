@@ -267,7 +267,8 @@ ll_prio_push (struct chx_pq *pq0, struct chx_qh *q0)
   ll_insert (&pq0->q, q, q_prev);
   if (q_prev != q0)
     chx_spin_unlock (&((struct chx_pq *)q_prev)->lock);
-  chx_spin_unlock (&((struct chx_pq *)q)->lock);
+  if (q != q0)
+    chx_spin_unlock (&((struct chx_pq *)q)->lock);
   pq0->parent = q0;
 }
 
@@ -293,7 +294,8 @@ ll_prio_enqueue (struct chx_pq *pq0, struct chx_qh *q0)
   ll_insert (&pq0->q, q, q_prev);
   if (q_prev != q0)
     chx_spin_unlock (&((struct chx_pq *)q_prev)->lock);
-  chx_spin_unlock (&((struct chx_pq *)q)->lock);
+  if (q != q0)
+    chx_spin_unlock (&((struct chx_pq *)q)->lock);
   pq0->parent = q0;
 }
 
