@@ -672,7 +672,15 @@ chx_sched (uint32_t yield)
       chx_ready_enqueue (running);
       chx_spin_unlock (&running->lock);
       tp = chx_ready_pop ();
-      chx_spin_lock (&running->lock);
+      if (tp == running)
+	{
+	  uintptr_t v = tp->v;
+	  chx_spin_unlock (&tp->lock);
+	  chx_cpu_sched_unlock ();
+	  return v;
+	}
+      else
+	chx_spin_lock (&running->lock);
     }
   else
     tp = chx_ready_pop ();
