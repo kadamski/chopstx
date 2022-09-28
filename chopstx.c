@@ -55,6 +55,8 @@
 #endif
 
 typedef void *(voidfunc) (void *);
+
+static void chx_thread_init (struct chx_thread *tp, uint32_t flags_and_prio);
 
 void __attribute__((weak)) chx_fatal (uint32_t err_code);
 
@@ -707,12 +709,36 @@ chx_systick_init (void)
     }
 }
 
+#define CHOPSTX_PRIO_MASK ((1 << CHOPSTX_PRIO_BITS) - 1)
+
+static void
+chx_thread_init (struct chx_thread *tp, uint32_t flags_and_prio)
+{
+  chopstx_prio_t prio = (flags_and_prio & CHOPSTX_PRIO_MASK);
+
+  chx_spin_init (&tp->lock);
+  chx_spin_lock (&tp->lock);
+  tp->q.next = tp->q.prev = &tp->q;
+  tp->mutex_list = NULL;
+  tp->clp = NULL;
+  tp->state = THREAD_RUNNING;
+  tp->flag_got_cancel = tp->flag_join_req = 0;
+  tp->flag_cancelable = 1;
+  tp->flag_sched_rr = (flags_and_prio & CHOPSTX_SCHED_RR)? 1 : 0;
+  tp->flag_detached = (flags_and_prio & CHOPSTX_DETACHED)? 1 : 0;
+  tp->flag_is_proxy = 0;
+  tp->prio_orig = tp->prio = prio;
+  tp->parent = NULL;
+  tp->v = 0;
+}
+
 chopstx_t chopstx_main;
 
 void
 chx_init (struct chx_thread *tp)
 {
   chx_interrupt_controller_init ();
+  chx_cpu_sched_lock ();
   chx_init_arch (tp);
   chx_spin_init (&chx_enable_sleep_lock);
 
@@ -725,23 +751,10 @@ chx_init (struct chx_thread *tp)
   q_intr.q.next = q_intr.q.prev = &q_intr.q;
   chx_spin_init (&q_intr.lock);
   chx_spin_init (&tp->lock);
-  tp->q.next = tp->q.prev = &tp->q;
-  tp->mutex_list = NULL;
-  tp->clp = NULL;
-  tp->state = THREAD_RUNNING;
-  tp->flag_got_cancel = tp->flag_join_req = 0;
-  tp->flag_cancelable = 1;
-  tp->flag_sched_rr = (CHX_FLAGS_MAIN & CHOPSTX_SCHED_RR)? 1 : 0;
-  tp->flag_detached = (CHX_FLAGS_MAIN & CHOPSTX_DETACHED)? 1 : 0;
-  tp->flag_is_proxy = 0;
-  tp->prio_orig = CHX_PRIO_MAIN_INIT;
-  tp->prio = 0;
-  tp->parent = NULL;
-  tp->v = 0;
-
-  tp->prio = CHX_PRIO_MAIN_INIT;
-
+  chx_thread_init (tp, (CHX_FLAGS_MAIN | CHX_PRIO_MAIN_INIT));
+  chx_spin_unlock (&tp->lock);
   chopstx_main = (chopstx_t)tp;
+  chx_cpu_sched_unlock ();
 }
 
 #define CHX_SLEEP 0
@@ -905,8 +918,6 @@ chx_mutex_unlock (chopstx_mutex_t *mutex,
     }
 }
 
-#define CHOPSTX_PRIO_MASK ((1 << CHOPSTX_PRIO_BITS) - 1)
-
 /**
  * chopstx_create - Create a thread
  * @flags_and_prio: Flags and priority
@@ -923,26 +934,10 @@ chopstx_create (uint32_t flags_and_prio,
 		voidfunc thread_entry, void *arg)
 {
   struct chx_thread *tp;
-  chopstx_prio_t prio = (flags_and_prio & CHOPSTX_PRIO_MASK);
   struct chx_thread *running = chx_running ();
 
-  tp = chopstx_create_arch (stack_addr, stack_size, thread_entry,
-			    arg);
-  chx_spin_init (&tp->lock);
-  chx_spin_lock (&tp->lock);
-  tp->q.next = tp->q.prev = &tp->q;
-  tp->mutex_list = NULL;
-  tp->clp = NULL;
-  tp->state = THREAD_EXITED;
-  tp->flag_got_cancel = tp->flag_join_req = 0;
-  tp->flag_cancelable = 1;
-  tp->flag_sched_rr = (flags_and_prio & CHOPSTX_SCHED_RR)? 1 : 0;
-  tp->flag_detached = (flags_and_prio & CHOPSTX_DETACHED)? 1 : 0;
-  tp->flag_is_proxy = 0;
-  tp->prio_orig = tp->prio = prio;
-  tp->parent = NULL;
-  tp->v = 0;
-
+  tp = chopstx_create_arch (stack_addr, stack_size, thread_entry, arg);
+  chx_thread_init (tp, flags_and_prio);
   chx_cpu_sched_lock ();
   chx_ready_enqueue (tp);
   chx_spin_lock (&running->lock);
@@ -1981,30 +1976,30 @@ chopstx_poll (uint32_t *usec_p, int n, struct chx_poll_head *const pd_array[])
 chopstx_prio_t
 chopstx_setpriority (chopstx_prio_t prio_new)
 {
-  struct chx_thread *tp = chx_running ();
+  struct chx_thread *running = chx_running ();
   chopstx_prio_t prio_orig, prio_cur;
 
   chx_cpu_sched_lock ();
-  chx_spin_lock (&tp->lock);
-  prio_orig = tp->prio_orig;
-  prio_cur = tp->prio;
+  chx_spin_lock (&running->lock);
+  prio_orig = running->prio_orig;
+  prio_cur = running->prio;
 
-  tp->prio_orig = prio_new;
+  running->prio_orig = prio_new;
   if (prio_cur == prio_orig)
     /* No priority inheritance is active.  */
-    tp->prio = prio_new;
+    running->prio = prio_new;
   else
     /* Priority inheritance is active.  */
     /* In this case, only when new priority is greater, change the
        priority of this thread.  */
     if (prio_new > prio_cur)
-      tp->prio = prio_new;
+      running->prio = prio_new;
 
-  if (tp->prio < prio_cur)
+  if (running->prio < prio_cur)
     chx_sched (CHX_YIELD);
   else
     {
-      chx_spin_unlock (&tp->lock);
+      chx_spin_unlock (&running->lock);
       chx_cpu_sched_unlock ();
     }
 
