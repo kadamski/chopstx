@@ -256,10 +256,11 @@ static struct xchg xchg[N_NminusNdiv2];
 #define main emulated_main
 #endif
 
+static chopstx_t tid[N_N];
+
 int
 main (int argc, const char *argv[])
 {
-  chopstx_t tid[N_N];
   struct sem in[N_N];
   struct sem out;
   struct worker_args args[N_N];
