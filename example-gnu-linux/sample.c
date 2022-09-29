@@ -256,14 +256,14 @@ static struct xchg xchg[N_NminusNdiv2];
 #define main emulated_main
 #endif
 
-static chopstx_t tid[N_N];
+static chopstx_t tid[N];
 
 int
 main (int argc, const char *argv[])
 {
-  struct sem in[N_N];
+  struct sem in[N];
   struct sem out;
-  struct worker_args args[N_N];
+  struct worker_args args[N];
   int array[N_N] = {
     25, 24, 31, 30, 23, 15, 16,
     26, 20, 21, 46, 45, 40, 36,
