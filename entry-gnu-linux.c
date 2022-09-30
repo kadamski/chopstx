@@ -1,7 +1,7 @@
 /*
  * entry.c - Entry routine.
  *
- * Copyright (C) 2017, 2019
+ * Copyright (C) 2017, 2019, 2022
  *               Flying Stone Technology
  * Author: NIIBE Yutaka <gniibe@fsij.org>
  *
@@ -41,5 +41,5 @@ main (int argc, const char *argv[])
 {
   chx_init (&main_thread);
   chx_systick_init ();
-  emulated_main (argc, argv);
+  return emulated_main (argc, argv);
 }
