@@ -2,7 +2,7 @@
  * chopstx-riscv32.c - Threads and only threads: Arch specific code
  *                     for RISC-V 32 IMAC (Bumblebee core)
  *
- * Copyright (C) 2019, 2021
+ * Copyright (C) 2019, 2021, 2022
  *               Flying Stone Technology
  * Author: NIIBE Yutaka <gniibe@fsij.org>
  *

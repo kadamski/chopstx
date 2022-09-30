@@ -2,7 +2,7 @@
  * chopstx-cortex-m.c - Threads and only threads: Arch specific code
  *                      for Cortex-M0/M3/M4
  *
- * Copyright (C) 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2021
+ * Copyright (C) 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2021, 2022
  *               Flying Stone Technology
  * Author: NIIBE Yutaka <gniibe@fsij.org>
  *
@@ -28,18 +28,18 @@
  *
  */
 
-static struct chx_thread *running;
+static struct chx_thread *running_one;
 
 static struct chx_thread *
 chx_running (void)
 {
-  return running;
+  return running_one;
 }
 
 static void
 chx_set_running (struct chx_thread *r)
 {
-  running = r;
+  running_one = r;
 }
 
 
@@ -259,7 +259,7 @@ involuntary_context_switch (struct chx_thread *tp_next)
   register struct chx_thread *tp_current asm ("r1");
 
   asm (
-	"ldr	r2, =running\n\t"
+	"ldr	r2, =running_one\n\t"
 	"ldr	r1, [r2]"
 	: "=r" (tp_current)
 	: /* no input */
@@ -297,7 +297,7 @@ involuntary_context_switch (struct chx_thread *tp_next)
   asm volatile (
 	/* Now, r0 points to the thread to be switched.  */
 	/* Put it to *running.  */
-	"ldr	r1, =running\n\t"
+	"ldr	r1, =running_one\n\t"
 	/* Update running: chx_set_running */
 	"str	r0, [r1]\n\t"
 	/**/
@@ -402,7 +402,7 @@ voluntary_context_switch (struct chx_thread *running,
        "mov	r2, %0\n\t"
        "mov	r3, %0\n\t"
        "push	{%0, r2, r3}\n\t"
-       "ldr	r2, =running\n\t"
+       "ldr	r2, =running_one\n\t"
        "ldr	%0, [r2]\n\t"
        "push	{%0, r3}\n\t"
        : "=r" (tp)
@@ -425,7 +425,7 @@ voluntary_context_switch (struct chx_thread *running,
 
   asm volatile (/* Now, r0 points to the thread to be switched.  */
 		/* Put it to *running.  */
-		"ldr	r1, =running\n\t"
+		"ldr	r1, =running_one\n\t"
 		/* Update running.  */
 		"str	r0, [r1]\n\t"
 		"cmp	r0, #0\n\t"
@@ -549,7 +549,7 @@ svc (void)
 {
   register uint32_t tp_next asm ("r0");
 
-  asm ("ldr	r1, =running\n\t"
+  asm ("ldr	r1, =running_one\n\t"
        "ldr	r1, [r1]\n\t"
        "adds	r1, #20\n\t"
        /* Save registers onto CHX_THREAD struct.  */
@@ -570,7 +570,7 @@ svc (void)
   asm volatile (
 	/* Now, r0 points to the thread to be switched.  */
 	/* Put it to *running.  */
-	"ldr	r1, =running\n\t"
+	"ldr	r1, =running_one\n\t"
 	/* Update running: chx_set_running */
 	"str	r0, [r1]\n\t"
 	"cbz	r0, 1f\n\t"

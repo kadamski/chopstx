@@ -43,18 +43,18 @@
 #include <stdlib.h>
 #include <sys/time.h>
 
-static struct chx_thread *running;
+static struct chx_thread *running_one;
 
 static struct chx_thread *
 chx_running (void)
 {
-  return running;
+  return running_one;
 }
 
 static void
 chx_set_running (struct chx_thread *r)
 {
-  running = r;
+  running_one = r;
 }
 
 
@@ -277,14 +277,13 @@ preempted_context_switch (struct chx_thread *tp_next)
 
 
 static uintptr_t
-voluntary_context_switch (struct chx_thread *tp_next)
+voluntary_context_switch (struct chx_thread *running,
+			  struct chx_thread *tp_next)
 {
   struct chx_thread *tp;
-  struct chx_thread *running;
   tcontext_t *tc_prev, *tc_next;
   uintptr_t v;
 
-  running = chx_running ();
   tc_prev = &running->tc;
   chx_spin_unlock (&running->lock);
   if (!tp_next)
