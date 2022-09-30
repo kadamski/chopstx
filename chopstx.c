@@ -320,11 +320,10 @@ enum  {
 
 
 static struct chx_thread *
-chx_ready_pop (void)
+chx_ready_pop_unlocked (void)
 {
   struct chx_thread *tp;
 
-  chx_spin_lock (&q_ready.lock);
   tp = (struct chx_thread *)ll_pop (&q_ready.q);
   if (tp)
     {
@@ -336,6 +335,16 @@ chx_ready_pop (void)
 	  chx_spin_unlock (&q_timer.lock);
 	}
     }
+  return tp;
+}
+
+static struct chx_thread *
+chx_ready_pop (void)
+{
+  struct chx_thread *tp;
+
+  chx_spin_lock (&q_ready.lock);
+  tp = chx_ready_pop_unlocked ();
   chx_spin_unlock (&q_ready.lock);
   return tp;
 }
@@ -620,18 +629,18 @@ chx_recv_irq (uint32_t irq_num)
 static struct chx_thread * __attribute__ ((noinline))
 chx_running_preempted (struct chx_thread *tp_next)
 {
-  struct chx_thread *tp = chx_running ();
+  struct chx_thread *running = chx_running ();
 
-  if (tp == NULL)
+  if (running == NULL)
     return tp_next;
 
-  chx_spin_lock (&tp->lock);
-  if (tp->flag_sched_rr)
+  chx_spin_lock (&running->lock);
+  if (running->flag_sched_rr)
     {
-      if (tp->state == THREAD_RUNNING)
+      if (running->state == THREAD_RUNNING)
 	{
-	  chx_timer_dequeue (tp);
-	  chx_ready_enqueue (tp);
+	  chx_timer_dequeue (running);
+	  chx_ready_enqueue (running);
 	}
       /*
        * It may be THREAD_READY after chx_timer_expired.
@@ -639,8 +648,7 @@ chx_running_preempted (struct chx_thread *tp_next)
        */
     }
   else
-    chx_ready_push (tp);
-  chx_spin_unlock (&tp->lock);
+    chx_ready_push (running);
 
   return tp_next;
 }
@@ -664,29 +672,17 @@ static uintptr_t __attribute__ ((noinline))
 chx_sched (uint32_t yield)
 {
   struct chx_thread *tp;
+  struct chx_thread *running = chx_running ();
 
   if (yield)
     {
-      struct chx_thread *running = chx_running ();
-
       if (running->flag_sched_rr)
 	chx_timer_dequeue (running);
       chx_ready_enqueue (running);
-      chx_spin_unlock (&running->lock);
-      tp = chx_ready_pop ();
-      if (tp == running)
-	{
-	  uintptr_t v = tp->v;
-	  chx_spin_unlock (&tp->lock);
-	  chx_cpu_sched_unlock ();
-	  return v;
-	}
-      else
-	chx_spin_lock (&running->lock);
     }
-  else
-    tp = chx_ready_pop ();
-  return voluntary_context_switch (tp);
+
+  tp = chx_ready_pop ();
+  return voluntary_context_switch (running, tp);
 }
 
 
@@ -936,11 +932,11 @@ chopstx_create (uint32_t flags_and_prio,
   struct chx_thread *tp;
   struct chx_thread *running = chx_running ();
 
+  chx_spin_lock (&running->lock);
   tp = chopstx_create_arch (stack_addr, stack_size, thread_entry, arg);
   chx_thread_init (tp, flags_and_prio);
   chx_cpu_sched_lock ();
   chx_ready_enqueue (tp);
-  chx_spin_lock (&running->lock);
   if (tp->prio > running->prio)
     {
       chx_spin_unlock (&tp->lock);
@@ -1112,7 +1108,8 @@ requeue (struct chx_thread *tp)
 void
 chopstx_mutex_lock (chopstx_mutex_t *mutex)
 {
-  struct chx_thread *tp = chx_running ();
+  struct chx_thread *running = chx_running ();
+  chopstx_mutex_t *mutex0;
 
   while (1)
     {
@@ -1120,35 +1117,40 @@ chopstx_mutex_lock (chopstx_mutex_t *mutex)
 
       chx_cpu_sched_lock ();
       chx_spin_lock (&mutex->lock);
+      chx_spin_lock (&running->lock);
       if (mutex->owner == NULL)
 	{
 	  /* The mutex is acquired.  */
-	  mutex->owner = tp;
-	  chx_spin_lock (&tp->lock);
-	  mutex->list = tp->mutex_list;
-	  tp->mutex_list = mutex;
-	  chx_spin_unlock (&tp->lock);
+	  mutex->owner = running;
+	  mutex->list = running->mutex_list;
+	  running->mutex_list = mutex;
+	  chx_spin_unlock (&running->lock);
 	  chx_spin_unlock (&mutex->lock);
 	  chx_cpu_sched_unlock ();
 	  break;
 	}
 
+      if (running->flag_sched_rr)
+	chx_timer_dequeue (running);
+      ll_prio_enqueue ((struct chx_pq *)running, &mutex->q);
+      running->state = THREAD_WAIT_MTX;
+
       /* Priority inheritance.  */
       tp0 = mutex->owner;
-      chx_spin_unlock (&mutex->lock);
+      mutex0 = mutex;
+
       while (tp0)
 	{
 	  chx_spin_lock (&tp0->lock);
-	  chx_spin_lock (&tp->lock);
-	  if (tp0->prio >= tp->prio)
+	  if (tp0->prio >= running->prio)
 	    {
-	      chx_spin_unlock (&tp->lock);
 	      chx_spin_unlock (&tp0->lock);
+	      if (mutex0)
+		chx_spin_unlock (&mutex0->lock);
 	      break;
 	    }
 
-	  tp0->prio = tp->prio;
-	  chx_spin_unlock (&tp->lock);
+	  tp0->prio = running->prio;
 
 	  if (tp0->state == THREAD_WAIT_TIME
 	      || tp0->state == THREAD_WAIT_POLL)
@@ -1156,23 +1158,30 @@ chopstx_mutex_lock (chopstx_mutex_t *mutex)
 	      tp0->v = (uintptr_t)chx_timer_dequeue (tp0);
 	      chx_ready_enqueue (tp0);
 	      chx_spin_unlock (&tp0->lock);
+	      if (mutex0)
+		chx_spin_unlock (&mutex0->lock);
 	      tp0 = NULL;
+	      mutex0 = NULL;
 	    }
 	  else
 	    {
 	      struct chx_thread *tp1 = requeue (tp0);
+	      chopstx_mutex_t *mutex1;
+
+	      if (tp0->state == THREAD_WAIT_MTX)
+		mutex1 = (struct chx_mtx *)tp0->parent;
+	      else
+		mutex1 = NULL;
 	      chx_spin_unlock (&tp0->lock);
+	      if (mutex0)
+		chx_spin_unlock (&mutex0->lock);
 	      tp0 = tp1;
+	      mutex0 = mutex1;
+	      if (mutex0)
+		chx_spin_lock (&mutex0->lock);
 	    }
 	}
 
-      chx_spin_lock (&tp->lock);
-      if (tp->flag_sched_rr)
-	chx_timer_dequeue (tp);
-      chx_spin_lock (&mutex->lock);
-      ll_prio_enqueue ((struct chx_pq *)tp, &mutex->q);
-      tp->state = THREAD_WAIT_MTX;
-      chx_spin_unlock (&mutex->lock);
       chx_sched (CHX_SLEEP);
     }
 }
@@ -1193,10 +1202,12 @@ chopstx_mutex_unlock (chopstx_mutex_t *mutex)
   chopstx_prio_t prio;
 
   chx_cpu_sched_lock ();
-  chx_spin_lock (&running->lock);
   chx_spin_lock (&mutex->lock);
+  chx_spin_lock (&running->lock);
   prio = chx_mutex_unlock (mutex, running);
+  chx_spin_unlock (&running->lock);
   chx_spin_unlock (&mutex->lock);
+  chx_spin_lock (&running->lock);
   if (prio > running->prio)
     chx_sched (CHX_YIELD);
   else
@@ -1236,19 +1247,20 @@ chopstx_cond_wait (chopstx_cond_t *cond, chopstx_mutex_t *mutex)
 
   chopstx_testcancel ();
   chx_cpu_sched_lock ();
-  chx_spin_lock (&running->lock);
+  chx_spin_lock (&cond->lock);
 
   if (mutex)
     {
       chx_spin_lock (&mutex->lock);
+      chx_spin_lock (&running->lock);
       chx_mutex_unlock (mutex, running);
+      chx_spin_unlock (&running->lock);
       chx_spin_unlock (&mutex->lock);
     }
 
+  chx_spin_lock (&running->lock);
   if (running->flag_sched_rr)
     chx_timer_dequeue (running);
-
-  chx_spin_lock (&cond->lock);
   ll_prio_enqueue ((struct chx_pq *)running, &cond->q);
   running->state = THREAD_WAIT_CND;
   chx_spin_unlock (&cond->lock);
@@ -1526,17 +1538,20 @@ chopstx_exit (void *retval)
 
   /* Release all mutexes this thread still holds.  */
   chx_spin_lock (&running->lock);
-  for (m = running->mutex_list; m; m = m_next)
+  m = running->mutex_list;
+  chx_spin_unlock (&running->lock);
+  for (; m; m = m_next)
     {
       m_next = m->list;
 
       chx_cpu_sched_lock ();
       chx_spin_lock (&m->lock);
+      chx_spin_lock (&running->lock);
       chx_mutex_unlock (m, running);
+      chx_spin_unlock (&running->lock);
       chx_spin_unlock (&m->lock);
       chx_cpu_sched_unlock ();
     }
-  chx_spin_unlock (&running->lock);
 
   chx_exit (retval);
 }

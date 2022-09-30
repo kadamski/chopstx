@@ -491,7 +491,8 @@ chx_idle (void)
 
 /* Called with tp->lock held, resume with ->lock released.  */
 static uintptr_t
-voluntary_context_switch (struct chx_thread *tp_next)
+voluntary_context_switch (struct chx_thread *running,
+			  struct chx_thread *tp_next)
 {
   register uintptr_t result asm ("a0");
 
