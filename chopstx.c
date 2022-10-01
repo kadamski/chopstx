@@ -1614,9 +1614,6 @@ chopstx_join (chopstx_t thd, void **ret)
       struct chx_thread *running = chx_running ();
       struct chx_thread *tp0 = tp;
 
-      tp->flag_join_req = 1;
-      chx_spin_unlock (&tp->lock);
-
       chx_spin_lock (&running->lock);
       if (running->flag_sched_rr)
 	chx_timer_dequeue (running);
@@ -1626,13 +1623,14 @@ chopstx_join (chopstx_t thd, void **ret)
       running->v = (uintptr_t)tp;
       running->state = THREAD_WAIT_EXIT;
 
+      tp->flag_join_req = 1;
+
       /* Priority inheritance.  */
       tp0 = tp;
-      while (tp0)
+      while (1)
 	{
 	  struct chx_thread *tp1;
 
-	  chx_spin_lock (&tp0->lock);
 	  if (tp0->prio >= running->prio)
 	    {
 	      chx_spin_unlock (&tp0->lock);
@@ -1643,6 +1641,10 @@ chopstx_join (chopstx_t thd, void **ret)
 	  tp1 = requeue (tp0);
 	  chx_spin_unlock (&tp0->lock);
 	  tp0 = tp1;
+	  if (tp0 == NULL)
+	    break;
+
+	  chx_spin_lock (&tp0->lock);
 	}
       r = chx_sched (CHX_SLEEP, running);
     }
