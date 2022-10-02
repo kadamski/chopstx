@@ -194,8 +194,12 @@ chx_handle_intr (uint32_t irq_num)
 
   tp_next = chx_recv_irq (irq_num);
   if (!tp_next)
-    return;
+    {
+      chx_spin_unlock (&q_ready.lock);
+      return;
+    }
 
+  chx_spin_unlock (&q_ready.lock);
   tp_next = chx_running_preempted (tp_next);
   preempted_context_switch (tp_next);
 }

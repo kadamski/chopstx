@@ -619,7 +619,8 @@ chx_recv_irq (uint32_t irq_num)
 	  struct chx_thread *tp;
 
 	  chx_spin_unlock (&p->lock);
-	  tp = chx_ready_pop ();
+	  chx_spin_lock (&q_ready.lock);
+	  tp = chx_ready_pop_unlocked ();
 	  if (tp)
 	    {
 	      chx_spin_unlock (&q_intr.lock);
@@ -627,8 +628,14 @@ chx_recv_irq (uint32_t irq_num)
 	    }
 	}
       else
-	chx_spin_unlock (&p->lock);
+	{
+	  chx_spin_unlock (&p->lock);
+	  chx_spin_lock (&q_ready.lock);
+	}
     }
+  else
+    chx_spin_lock (&q_ready.lock);
+
   chx_spin_unlock (&q_intr.lock);
 
   return NULL;
