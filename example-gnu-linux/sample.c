@@ -4,6 +4,10 @@
 
 #include <chopstx.h>
 
+#ifndef TESTING
+#define TESTING 1
+#endif
+
 static void
 bbl_sort (int array[], int n, int dir)
 {
@@ -180,6 +184,9 @@ worker (void *args0)
 	dir = -1;
 
       bbl_sort (array, N, dir);
+#if TESTING
+      chopstx_usec_wait (3);
+#endif
 
       iter++;
       if (iter >= ITERATION)
