@@ -955,10 +955,10 @@ chopstx_create (uint32_t flags_and_prio,
   struct chx_thread *tp;
   struct chx_thread *running = chx_running ();
 
+  chx_cpu_sched_lock ();
   chx_spin_lock (&running->lock);
   tp = chopstx_create_arch (stack_addr, stack_size, thread_entry, arg);
   chx_thread_init (tp, flags_and_prio);
-  chx_cpu_sched_lock ();
   chx_ready_enqueue (tp);
   if (tp->prio > running->prio)
     {
@@ -1500,10 +1500,12 @@ chopstx_cleanup_push (struct chx_cleanup *clp)
 {
   struct chx_thread *running = chx_running ();
 
+  chx_cpu_sched_lock ();
   chx_spin_lock (&running->lock);
   clp->next = running->clp;
   running->clp = clp;
   chx_spin_unlock (&running->lock);
+  chx_cpu_sched_unlock ();
 }
 
 /**
@@ -1519,6 +1521,7 @@ chopstx_cleanup_pop (int execute)
   struct chx_thread *running = chx_running ();
   struct chx_cleanup *clp;
 
+  chx_cpu_sched_lock ();
   chx_spin_lock (&running->lock);
   clp = running->clp;
   if (clp)
@@ -1530,6 +1533,7 @@ chopstx_cleanup_pop (int execute)
     }
   else
     chx_spin_unlock (&running->lock);
+  chx_cpu_sched_unlock ();
 }
 
 
@@ -1549,20 +1553,24 @@ chopstx_exit (void *retval)
   struct chx_thread *running = chx_running ();
   struct chx_cleanup *clp;
 
+  chx_cpu_sched_lock ();
   chx_spin_lock (&running->lock);
   clp = running->clp;
   running->clp = NULL;
   chx_spin_unlock (&running->lock);
+  chx_cpu_sched_unlock ();
   while (clp)
     {
       clp->routine (clp->arg);
       clp = clp->next;
     }
 
+  chx_cpu_sched_lock ();
   /* Release all mutexes this thread still holds.  */
   chx_spin_lock (&running->lock);
   m = running->mutex_list;
   chx_spin_unlock (&running->lock);
+  chx_cpu_sched_unlock ();
   for (; m; m = m_next)
     {
       m_next = m->list;
@@ -1797,13 +1805,16 @@ chopstx_testcancel (void)
 {
   struct chx_thread *running = chx_running ();
 
+  chx_cpu_sched_lock ();
   chx_spin_lock (&running->lock);
   if (running->flag_cancelable && running->flag_got_cancel)
     {
       chx_spin_unlock (&running->lock);
+      chx_cpu_sched_unlock ();
       chopstx_exit (CHOPSTX_CANCELED);
     }
   chx_spin_unlock (&running->lock);
+  chx_cpu_sched_unlock ();
 }
 
 
@@ -1821,10 +1832,12 @@ chopstx_setcancelstate (int cancel_disable)
   struct chx_thread *running = chx_running ();
   int old_state;
 
+  chx_cpu_sched_lock ();
   chx_spin_lock (&running->lock);
   old_state = !running->flag_cancelable;
   running->flag_cancelable = (cancel_disable == 0);
   chx_spin_unlock (&running->lock);
+  chx_cpu_sched_unlock ();
   chopstx_testcancel ();
   return old_state;
 }
@@ -1875,8 +1888,10 @@ chopstx_poll (uint32_t *usec_p, int n, struct chx_poll_head *const pd_array[])
   chopstx_testcancel ();
 
   chx_spin_init (&lock);
+  chx_cpu_sched_lock ();
   for (i = 0; i < n; i++)
     chx_proxy_init (&px[i], &counter, &lock);
+  chx_cpu_sched_unlock ();
 
  again:
   for (i = 0; i < n; i++)
