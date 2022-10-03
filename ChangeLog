@@ -1,3 +1,9 @@
+2022-10-05  NIIBE Yutaka  <gniibe@fsij.org>
+
+	* chopstx.c (requeue): Fix the bug.  Old code depends on
+	compiler's behavior; ll_dequeue may be called before
+	evaluating tp->parent.
+
 2022-07-18  NIIBE Yutaka  <gniibe@fsij.org>
 
 	* VERSION: 2.4
