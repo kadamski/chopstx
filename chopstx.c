@@ -1075,7 +1075,7 @@ requeue (struct chx_thread *tp)
       chx_spin_lock (&q_ready.lock);
       chx_spin_lock (&tp->lock);
       if (tp->parent == &q_ready.q)
-	ll_prio_enqueue (ll_dequeue ((struct chx_pq *)tp), tp->parent);
+	ll_prio_enqueue (ll_dequeue ((struct chx_pq *)tp), &q_ready.q);
       chx_spin_unlock (&q_ready.lock);
     }
   else if (tp->state == THREAD_WAIT_MTX)
@@ -1089,7 +1089,8 @@ requeue (struct chx_thread *tp)
       if (tp->parent == (struct chx_qh *)mutex)
 	{
 	  tp_owner = mutex->owner;
-	  ll_prio_enqueue (ll_dequeue ((struct chx_pq *)tp), tp->parent);
+	  ll_prio_enqueue (ll_dequeue ((struct chx_pq *)tp),
+			   (struct chx_qh *)mutex);
 	}
       chx_spin_unlock (&mutex->lock);
       return tp_owner;
@@ -1102,7 +1103,8 @@ requeue (struct chx_thread *tp)
       chx_spin_lock (&cond->lock);
       chx_spin_lock (&tp->lock);
       if (tp->parent == (struct chx_qh *)cond)
-	ll_prio_enqueue (ll_dequeue ((struct chx_pq *)tp), tp->parent);
+	ll_prio_enqueue (ll_dequeue ((struct chx_pq *)tp),
+			 (struct chx_qh *)tp->parent);
       chx_spin_unlock (&cond->lock);
       /* We don't know who can wake up this thread.  */
     }
