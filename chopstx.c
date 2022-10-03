@@ -395,10 +395,7 @@ chx_set_timer (struct chx_qh *q, uint32_t ticks)
   else
     {
       struct chx_thread *tp = (struct chx_thread *)q;
-
-      chx_spin_lock (&tp->lock);
       tp->v = ticks;
-      chx_spin_unlock (&tp->lock);
     }
 }
 
@@ -566,10 +563,11 @@ chx_timer_expired (void)
 
   chx_spin_unlock (&q_timer.lock);
 
+  chx_spin_lock (&q_ready.lock);
   if (running == NULL)
     {
     pop:
-      if ((tp = chx_ready_pop ()))
+      if ((tp = chx_ready_pop_unlocked ()))
 	return tp;
 
       /* When tp->flag_sched_rr == 1, it's possible.  No context switch.  */
