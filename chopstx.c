@@ -503,8 +503,6 @@ chx_timer_expired (void)
 {
   struct chx_thread *tp;
   struct chx_thread *running = chx_running ();
-  uint16_t prio = 0;			/* Use uint16_t here.  */
-  int switch_to_another = 0;
 
   chx_spin_lock (&q_timer.lock);
   if (!(tp = (struct chx_thread *)ll_pop (&q_timer.q)))
@@ -517,10 +515,6 @@ chx_timer_expired (void)
       next_tick = tp->v;
       tp->v = (uintptr_t)0;
       chx_ready_enqueue (tp);
-      if (tp == running)	/* tp->flag_sched_rr == 1 */
-	prio = MAX_PRIO;
-      else
-	prio = (uint16_t)tp->prio;
       chx_spin_unlock (&tp->lock);
 
       for (q = q_timer.q.next; q != &q_timer.q && next_tick == 0; q = q_next)
@@ -533,11 +527,6 @@ chx_timer_expired (void)
 	  q_next = tp->q.next;
 	  ll_dequeue ((struct chx_pq *)tp);
 	  chx_ready_enqueue (tp);
-	  if (tp == running)
-	    prio = MAX_PRIO;
-	  else
-	    if ((uint16_t)tp->prio > prio)
-	      prio = (uint16_t)tp->prio;
 	  chx_spin_unlock (&tp->lock);
 	}
 
@@ -546,30 +535,29 @@ chx_timer_expired (void)
       else
 	chx_set_timer (&q_timer.q, next_tick);
     }
-
   chx_spin_unlock (&q_timer.lock);
 
   chx_spin_lock (&q_ready.lock);
-  if (running == NULL)
-    switch_to_another = 1;
+  tp = chx_ready_pop_unlocked ();
+  if (tp == NULL)
+    return NULL;
+
+  chx_spin_lock (&running->lock);
+  if (tp->prio <= running->prio)
+    {
+      chx_ready_enqueue_unlocked (tp);
+      chx_spin_unlock (&tp->lock);
+      chx_spin_unlock (&running->lock);
+      return NULL;
+    }
   else
     {
-      chx_spin_lock (&running->lock);
-      if ((uint16_t)running->prio < prio)
-	switch_to_another = 1;
+      if (running->flag_sched_rr)
+	chx_timer_dequeue (running);
+      chx_ready_enqueue_unlocked (running);
       chx_spin_unlock (&running->lock);
+      return tp;
     }
-
-  if (switch_to_another)
-    {
-      if ((tp = chx_ready_pop_unlocked ()))
-	return tp;
-
-      /* When running->flag_sched_rr == 1 and timer is expired,
-	 it's possible to come here.  No context switch.  */
-    }
-
-  return NULL;
 }
 
 
