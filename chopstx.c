@@ -504,6 +504,7 @@ chx_timer_expired (void)
   struct chx_thread *tp;
   struct chx_thread *running = chx_running ();
   uint16_t prio = 0;			/* Use uint16_t here.  */
+  int switch_to_another = 0;
 
   chx_spin_lock (&q_timer.lock);
   if (!(tp = (struct chx_thread *)ll_pop (&q_timer.q)))
@@ -558,22 +559,22 @@ chx_timer_expired (void)
 
   chx_spin_lock (&q_ready.lock);
   if (running == NULL)
+    switch_to_another = 1;
+  else
     {
-    pop:
+      chx_spin_lock (&running->lock);
+      if ((uint16_t)running->prio < prio)
+	switch_to_another = 1;
+      chx_spin_unlock (&running->lock);
+    }
+
+  if (switch_to_another)
+    {
       if ((tp = chx_ready_pop_unlocked ()))
 	return tp;
 
-      /* When tp->flag_sched_rr == 1, it's possible.  No context switch.  */
-    }
-  else
-    {
-      chopstx_prio_t prio_running;
-
-      chx_spin_lock (&running->lock);
-      prio_running = running->prio;
-      chx_spin_unlock (&running->lock);
-      if ((uint16_t)prio_running < prio)
-	goto pop;
+      /* When running->flag_sched_rr == 1 and timer is expired,
+	 it's possible to come here.  No context switch.  */
     }
 
   return NULL;
