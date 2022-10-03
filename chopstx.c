@@ -338,17 +338,6 @@ chx_ready_pop_unlocked (void)
   return tp;
 }
 
-static struct chx_thread *
-chx_ready_pop (void)
-{
-  struct chx_thread *tp;
-
-  chx_spin_lock (&q_ready.lock);
-  tp = chx_ready_pop_unlocked ();
-  chx_spin_unlock (&q_ready.lock);
-  return tp;
-}
-
 
 static void
 chx_ready_push_unlocked (struct chx_thread *tp)
