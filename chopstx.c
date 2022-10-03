@@ -672,8 +672,8 @@ chx_yield (struct chx_thread *running)
 
     no_yield:
       v = running->v;
-      chx_spin_unlock (&running->lock);
       chx_spin_unlock (&q_ready.lock);
+      chx_spin_unlock (&running->lock);
       chx_cpu_sched_unlock ();
       return v;
     }
