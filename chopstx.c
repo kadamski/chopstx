@@ -512,6 +512,7 @@ chx_timer_expired (void)
   else
     {
       uint32_t next_tick;
+      struct chx_qh *q, *q_next;
 
       next_tick = tp->v;
       tp->v = (uintptr_t)0;
@@ -522,37 +523,28 @@ chx_timer_expired (void)
 	prio = (uint16_t)tp->prio;
       chx_spin_unlock (&tp->lock);
 
+      for (q = q_timer.q.next; q != &q_timer.q && next_tick == 0; q = q_next)
+	{
+	  tp = (struct chx_thread *)q;
+
+	  chx_spin_lock (&tp->lock);
+	  next_tick = tp->v;
+	  tp->v = (uintptr_t)0;
+	  q_next = tp->q.next;
+	  ll_dequeue ((struct chx_pq *)tp);
+	  chx_ready_enqueue (tp);
+	  if (tp == running)
+	    prio = MAX_PRIO;
+	  else
+	    if ((uint16_t)tp->prio > prio)
+	      prio = (uint16_t)tp->prio;
+	  chx_spin_unlock (&tp->lock);
+	}
+
       if (ll_empty (&q_timer.q))
 	chx_systick_reload (0);
       else
-	{
-	  struct chx_qh *q, *q_next;
-
-	  for (q = q_timer.q.next;
-	       q != &q_timer.q && next_tick == 0;
-	       q = q_next)
-	    {
-	      tp = (struct chx_thread *)q;
-
-	      chx_spin_lock (&tp->lock);
-	      next_tick = tp->v;
-	      tp->v = (uintptr_t)0;
-	      q_next = tp->q.next;
-	      ll_dequeue ((struct chx_pq *)tp);
-	      chx_ready_enqueue (tp);
-	      if (tp == running)
-		prio = MAX_PRIO;
-	      else
-		if ((uint16_t)tp->prio > prio)
-		  prio = (uint16_t)tp->prio;
-	      chx_spin_unlock (&tp->lock);
-	    }
-
-	  if (ll_empty (&q_timer.q))
-	    chx_systick_reload (0);
-	  else
-	    chx_set_timer (&q_timer.q, next_tick);
-	}
+	chx_set_timer (&q_timer.q, next_tick);
     }
 
   chx_spin_unlock (&q_timer.lock);
