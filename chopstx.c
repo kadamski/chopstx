@@ -351,9 +351,8 @@ chx_ready_pop (void)
 
 
 static void
-chx_ready_push (struct chx_thread *tp)
+chx_ready_push_unlocked (struct chx_thread *tp)
 {
-  chx_spin_lock (&q_ready.lock);
   tp->state = THREAD_READY;
   ll_prio_push ((struct chx_pq *)tp, &q_ready.q);
   chx_spin_unlock (&q_ready.lock);
@@ -656,7 +655,7 @@ chx_running_preempted (struct chx_thread *tp_next)
       if (running->state == THREAD_RUNNING)
 	{
 	  chx_timer_dequeue (running);
-	  chx_ready_enqueue (running);
+	  chx_ready_enqueue_unlocked (running);
 	}
       /*
        * It may be THREAD_READY after chx_timer_expired.
@@ -664,7 +663,7 @@ chx_running_preempted (struct chx_thread *tp_next)
        */
     }
   else
-    chx_ready_push (running);
+    chx_ready_push_unlocked (running);
 
   return tp_next;
 }
@@ -683,7 +682,8 @@ chx_sched (struct chx_thread *running)
 {
   struct chx_thread *tp;
 
-  tp = chx_ready_pop ();
+  chx_spin_lock (&q_ready.lock);
+  tp = chx_ready_pop_unlocked ();
   return voluntary_context_switch (running, tp);
 }
 
@@ -717,7 +717,6 @@ chx_yield (struct chx_thread *running)
 	chx_timer_dequeue (running);
       chx_ready_enqueue_unlocked (running);
     }
-  chx_spin_unlock (&q_ready.lock);
   return voluntary_context_switch (running, tp);
 }
 
@@ -770,19 +769,18 @@ chx_init (struct chx_thread *tp)
 {
   chx_interrupt_controller_init ();
   chx_cpu_sched_lock ();
-  chx_init_arch (tp);
-  chx_spin_init (&chx_enable_sleep_lock);
-
   q_ready.q.next = q_ready.q.prev = &q_ready.q;
   chx_spin_init (&q_ready.lock);
+  chx_spin_init (&tp->lock);
+  chx_thread_init (tp, (CHX_FLAGS_MAIN | CHX_PRIO_MAIN_INIT));
+  chx_init_arch (tp);
+  chx_spin_init (&chx_enable_sleep_lock);
   q_timer.q.next = q_timer.q.prev = &q_timer.q;
   chx_spin_init (&q_timer.lock);
   q_join.q.next = q_join.q.prev = &q_join.q;
   chx_spin_init (&q_join.lock);
   q_intr.q.next = q_intr.q.prev = &q_intr.q;
   chx_spin_init (&q_intr.lock);
-  chx_spin_init (&tp->lock);
-  chx_thread_init (tp, (CHX_FLAGS_MAIN | CHX_PRIO_MAIN_INIT));
   chx_spin_unlock (&tp->lock);
   chopstx_main = (chopstx_t)tp;
   chx_cpu_sched_unlock ();
