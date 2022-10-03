@@ -330,7 +330,9 @@ chx_ready_pop_unlocked (void)
       tp->state = THREAD_RUNNING;
       if (tp->flag_sched_rr)
 	{
+	  chx_spin_unlock (&tp->lock);
 	  chx_spin_lock (&q_timer.lock);
+	  chx_spin_lock (&tp->lock);
 	  chx_timer_insert (tp, PREEMPTION_USEC);
 	  chx_spin_unlock (&q_timer.lock);
 	}
@@ -408,8 +410,9 @@ chx_timer_insert (struct chx_thread *tp, uint32_t usec)
 	    chx_spin_lock (&((struct chx_pq *)q_prev)->lock);
 	  ll_insert (&tp->q, q, q_prev);
 	  if (q_prev != &q_timer.q)
-	    chx_spin_lock (&((struct chx_pq *)q_prev)->lock);
+	    chx_spin_unlock (&((struct chx_pq *)q_prev)->lock);
 	  chx_spin_unlock (&p->lock);
+	  /* FIXME: lock tp->q.prev */
 	  chx_set_timer (tp->q.prev, ticks);
 	  chx_set_timer (&tp->q, (next_ticks - ticks));
 	  break;
@@ -431,6 +434,7 @@ chx_timer_insert (struct chx_thread *tp, uint32_t usec)
       tp->parent = q;
       q_prev = q->prev;
       ll_insert (&tp->q, q, q_prev);
+      /* FIXME: lock tp->q.prev */
       chx_set_timer (tp->q.prev, ticks);
       chx_set_timer (&tp->q, 1);	/* Non-zero for the last entry. */
     }
@@ -717,11 +721,11 @@ chx_systick_init (void)
       struct chx_thread *running = chx_running ();
 
       chx_cpu_sched_lock ();
-      chx_spin_lock (&running->lock);
       chx_spin_lock (&q_timer.lock);
+      chx_spin_lock (&running->lock);
       chx_timer_insert (running, PREEMPTION_USEC);
-      chx_spin_unlock (&q_timer.lock);
       chx_spin_unlock (&running->lock);
+      chx_spin_unlock (&q_timer.lock);
       chx_cpu_sched_unlock ();
     }
 }
@@ -985,12 +989,14 @@ chx_snooze (uint32_t state, uint32_t *usec_p)
       return 1;
     }
 
-  chx_spin_lock (&running->lock);
   usec0 = (usec > MAX_USEC_FOR_TIMER) ? MAX_USEC_FOR_TIMER: usec;
+  chx_spin_lock (&running->lock);
   if (running->flag_sched_rr)
     chx_timer_dequeue (running);
+  chx_spin_unlock (&running->lock);
 
   chx_spin_lock (&q_timer.lock);
+  chx_spin_lock (&running->lock);
   running->state = state;
   chx_timer_insert (running, usec0);
   chx_spin_unlock (&q_timer.lock);
