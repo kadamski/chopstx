@@ -419,12 +419,11 @@ chx_timer_insert (struct chx_thread *tp, uint32_t usec)
 	  if (q_prev != &q_timer.q)
 	    chx_spin_lock (&((struct chx_pq *)q_prev)->lock);
 	  ll_insert (&tp->q, q, q_prev);
+	  chx_set_timer (q_prev, ticks);
 	  if (q_prev != &q_timer.q)
 	    chx_spin_unlock (&((struct chx_pq *)q_prev)->lock);
-	  chx_spin_unlock (&p->lock);
-	  /* FIXME: lock tp->q.prev */
-	  chx_set_timer (tp->q.prev, ticks);
 	  chx_set_timer (&tp->q, (next_ticks - ticks));
+	  chx_spin_unlock (&p->lock);
 	  break;
 	}
       else
@@ -443,9 +442,12 @@ chx_timer_insert (struct chx_thread *tp, uint32_t usec)
     {
       tp->parent = q;
       q_prev = q->prev;
+      if (q_prev != &q_timer.q)
+	chx_spin_lock (&((struct chx_pq *)q_prev)->lock);
       ll_insert (&tp->q, q, q_prev);
-      /* FIXME: lock tp->q.prev */
-      chx_set_timer (tp->q.prev, ticks);
+      chx_set_timer (q_prev, ticks);
+      if (q_prev != &q_timer.q)
+	chx_spin_unlock (&((struct chx_pq *)q_prev)->lock);
       chx_set_timer (&tp->q, 1);	/* Non-zero for the last entry. */
     }
 
