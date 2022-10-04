@@ -65,7 +65,8 @@ chx_dmb (void)
 }
 
 
-static void preempted_context_switch (struct chx_thread *tp_next);
+static void preempted_context_switch (struct chx_thread *running,
+				      struct chx_thread *tp_next);
 
 static sigset_t ss_cur;
 
@@ -157,6 +158,32 @@ chx_cpu_sched_unlock (void)
   pthread_sigmask (SIG_SETMASK, &ss_cur, NULL);
 }
 
+#ifdef SMP
+#define CHX_SIGCPU SIGRTMIN
+
+/* Called with q_ready.lock */
+static void
+chx_smp_kick_cpu (void)
+{
+  int i;
+  union sigval sigval = { .sival_int = 0 };
+
+  for (i = 0; i < MAX_CPU; i++)
+    if (cpu_info_table.status[i] == 0)
+      {
+	cpu_info_table.status[i] = -1;
+	pthread_sigqueue (cpu_info_table.tid[i], CHX_SIGCPU, sigval);
+	return;
+      }
+}
+
+static void
+chx_smp_mark_nothing_ready (void)
+{
+  cpu_info_table.status[cpu_id] = 0;
+}
+#endif
+
 /* NOTE: Called holding the cpu_sched_lock.  */
 static struct chx_thread *
 chx_idle (void)
@@ -175,12 +202,21 @@ chx_idle (void)
       if (sig == SIGALRM)
 	{
 	  chx_spin_lock (&q_ready.lock);
-	  tp_next = chx_timer_expired ();
+	  chx_timer_expired ();
+	  tp_next = chx_possibly_preempted (NULL);
 	}
+#ifdef SMP
+      else if (sig == CHX_SIGCPU)
+	{
+	  chx_spin_lock (&q_ready.lock);
+	  tp_next = chx_ready_pop ();
+	}
+#endif
       else
 	{
 	  chx_spin_lock (&q_ready.lock);
-	  tp_next = chx_recv_irq ((uint32_t)sig);
+	  chx_recv_irq ((uint32_t)sig);
+	  tp_next = chx_possibly_preempted (NULL);
 	  /* Exit when there is no waiter and it's INT or TERM.	 */
 	  if (tp_next == NULL
 	      && (sig == SIGINT || sig == SIGTERM))
@@ -195,16 +231,14 @@ void
 chx_handle_intr (uint32_t irq_num)
 {
   struct chx_thread *tp_next;
+  struct chx_thread *running = chx_running ();
 
+  assert (running);
   chx_spin_lock (&q_ready.lock);
-  tp_next = chx_recv_irq (irq_num);
-  if (tp_next)
-    {
-      tp_next = chx_running_preempted (tp_next);
-      preempted_context_switch (tp_next);
-    }
-  else
-    chx_spin_unlock (&q_ready.lock);
+  chx_recv_irq (irq_num);
+  chx_spin_lock (&running->lock);
+  tp_next = chx_possibly_preempted (running);
+  preempted_context_switch (running, tp_next);
 }
 
 
@@ -227,18 +261,17 @@ sigalrm_handler (int sig, siginfo_t *siginfo, void *arg)
 {
   struct chx_thread *tp_next;
   ucontext_t *uc = arg;
+  struct chx_thread *running = chx_running ();
+
   (void)sig;
   (void)siginfo;
 
+  assert (running);
   chx_spin_lock (&q_ready.lock);
-  tp_next = chx_timer_expired ();
-  if (tp_next)
-    {
-      tp_next = chx_running_preempted (tp_next);
-      preempted_context_switch (tp_next);
-    }
-  else
-    chx_spin_unlock (&q_ready.lock);
+  chx_timer_expired ();
+  chx_spin_lock (&running->lock);
+  tp_next = chx_possibly_preempted (running);
+  preempted_context_switch (running, tp_next);
   chx_sigmask (uc);
 }
 
@@ -259,10 +292,15 @@ chx_init_arch (struct chx_thread *tp)
 }
 
 static void
-preempted_context_switch (struct chx_thread *tp_next)
+preempted_context_switch (struct chx_thread *running,
+			  struct chx_thread *tp_next)
 {
-  struct chx_thread *tp_prev = chx_running ();
-  tcontext_t *tc = &tp_next->tc;
+  if (tp_next == NULL)
+    {
+      chx_spin_unlock (&running->lock);
+      chx_spin_unlock (&q_ready.lock);
+      return;
+    }
 
   /*
    * The swapcontext implementation may reset sigmask in the
