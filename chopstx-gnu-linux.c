@@ -173,10 +173,14 @@ chx_idle (void)
 	continue;
 
       if (sig == SIGALRM)
-	tp_next = chx_timer_expired ();
+	{
+	  chx_spin_lock (&q_ready.lock);
+	  tp_next = chx_timer_expired ();
+	}
       else
 	{
-	  tp_next = chx_recv_irq (sig);
+	  chx_spin_lock (&q_ready.lock);
+	  tp_next = chx_recv_irq ((uint32_t)sig);
 	  /* Exit when there is no waiter and it's INT or TERM.	 */
 	  if (tp_next == NULL
 	      && (sig == SIGINT || sig == SIGTERM))
@@ -192,15 +196,15 @@ chx_handle_intr (uint32_t irq_num)
 {
   struct chx_thread *tp_next;
 
+  chx_spin_lock (&q_ready.lock);
   tp_next = chx_recv_irq (irq_num);
-  if (!tp_next)
+  if (tp_next)
     {
-      chx_spin_unlock (&q_ready.lock);
-      return;
+      tp_next = chx_running_preempted (tp_next);
+      preempted_context_switch (tp_next);
     }
-
-  tp_next = chx_running_preempted (tp_next);
-  preempted_context_switch (tp_next);
+  else
+    chx_spin_unlock (&q_ready.lock);
 }
 
 
@@ -226,12 +230,15 @@ sigalrm_handler (int sig, siginfo_t *siginfo, void *arg)
   (void)sig;
   (void)siginfo;
 
+  chx_spin_lock (&q_ready.lock);
   tp_next = chx_timer_expired ();
   if (tp_next)
     {
       tp_next = chx_running_preempted (tp_next);
       preempted_context_switch (tp_next);
     }
+  else
+    chx_spin_unlock (&q_ready.lock);
   chx_sigmask (uc);
 }
 
