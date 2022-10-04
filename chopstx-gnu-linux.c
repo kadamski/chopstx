@@ -231,7 +231,9 @@ chx_idle (void)
   if (tp_next)
     return tp_next;
 
+#ifdef SMP
   cpu_info_table.status[cpu_id] = 0;
+#endif
 
   while (1)
     {
@@ -270,7 +272,9 @@ chx_idle (void)
       if (tp_next)
 	break;
 
+#ifdef SMP
       cpu_info_table.status[cpu_id] = 0;
+#endif
     }
 
 #ifdef SMP
