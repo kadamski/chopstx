@@ -287,6 +287,9 @@ chx_idle (void)
       sigwait (&setsigcpu, &sig);
     }
   cpu_info_table.status[cpu_id] = 1;
+
+  if (!ll_empty (&q_ready.q))
+    chx_smp_kick_cpu ();
 #endif
   return tp_next;
 }
