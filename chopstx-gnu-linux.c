@@ -43,6 +43,40 @@
 #include <stdlib.h>
 #include <sys/time.h>
 
+struct chx_spinlock chx_swapcontext_lock;
+#ifdef SMP
+#include <pthread.h>
+#ifndef MAX_CPU
+#define MAX_CPU 4
+#endif
+#define IDLE_STACK_SIZE 2048
+
+static __thread int cpu_id;
+static struct chx_thread *running_list[MAX_CPU];
+static tcontext_t idle_thread_tc[MAX_CPU];
+
+static volatile struct chx_thread *chx_tp_prev;
+static volatile struct chx_thread *chx_tp_next;
+
+struct cpu_info_table {
+  pthread_t tid[MAX_CPU];
+  int status[MAX_CPU];	      /* 0: idle, 1: running, -1: requested */
+};
+
+static struct cpu_info_table cpu_info_table;
+
+static struct chx_thread *
+chx_running (void)
+{
+  return running_list[cpu_id];
+}
+
+static void
+chx_set_running (struct chx_thread *r)
+{
+  running_list[cpu_id] = r;
+}
+#else
 static struct chx_thread *running_one;
 
 static struct chx_thread *
@@ -188,7 +222,15 @@ chx_smp_mark_nothing_ready (void)
 static struct chx_thread *
 chx_idle (void)
 {
-  struct chx_thread *tp_next = NULL;
+  struct chx_thread *tp_next;
+  sigset_t set;
+  int sig;
+#ifdef SMP
+  sigset_t setsigcpu;
+
+  sigemptyset (&setsigcpu);
+  sigaddset (&setsigcpu, CHX_SIGCPU);
+#endif
 
   while (tp_next == NULL)
     {
@@ -224,6 +266,17 @@ chx_idle (void)
 	}
     }
 
+#ifdef SMP
+  /* Drain SIGCPU signals in the queue if any.  */
+  while (1)
+    {
+      sigpending (&set);
+      if (!sigismember (&set, CHX_SIGCPU))
+	break;
+      sigwait (&setsigcpu, &sig);
+    }
+  cpu_info_table.status[cpu_id] = 1;
+#endif
   return tp_next;
 }
 
@@ -289,6 +342,40 @@ chx_init_arch (struct chx_thread *tp)
 
   getcontext (&tp->tc);
   chx_set_running (tp);
+}
+
+
+static void
+chx_swapcontext (struct chx_thread *tp_prev, struct chx_thread *tp_next)
+{
+  chx_spin_lock (&chx_swapcontext_lock);
+#ifdef SMP
+  chx_tp_prev = tp_prev;
+  chx_tp_next = tp_next;
+#endif
+  chx_set_running (tp_next);
+  if (tp_next)
+    swapcontext (&tp_prev->tc, &tp_next->tc);
+  else
+    {
+#ifdef SMP
+      swapcontext (&tp_prev->tc, &idle_thread_tc[cpu_id]);
+#else
+      tp_next = chx_idle ();
+      if (tp_prev != tp_next)
+	{
+	  chx_set_running (tp_next);
+	  swapcontext (&tp_prev->tc, &tp_next->tc);
+	}
+#endif
+    }
+#ifdef SMP
+  if (chx_tp_prev)
+    chx_spin_unlock ((struct chx_spinlock *)&chx_tp_prev->lock);
+  chx_spin_unlock ((struct chx_spinlock *)&chx_tp_next->lock);
+#endif
+  chx_spin_unlock (&chx_swapcontext_lock);
+  chx_spin_unlock (&q_ready.lock);
 }
 
 static void
@@ -366,6 +453,14 @@ static void __attribute__((__noreturn__))
 chx_thread_start (voidfunc thread_entry, void *arg)
 {
   void *ret;
+
+#ifdef SMP
+  if (chx_tp_prev)
+    chx_spin_unlock ((struct chx_spinlock *)&chx_tp_prev->lock);
+  chx_spin_unlock ((struct chx_spinlock *)&chx_tp_next->lock);
+#endif
+  chx_spin_unlock (&chx_swapcontext_lock);
+  chx_spin_unlock (&q_ready.lock);
 
   chx_cpu_sched_unlock ();
   ret = thread_entry (arg);

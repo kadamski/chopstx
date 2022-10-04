@@ -8,3 +8,49 @@
  */
 
 typedef ucontext_t tcontext_t;
+
+#include <assert.h>
+
+#ifdef SMP
+static void chx_smp_kick_cpu (void);
+static void chx_smp_mark_nothing_ready (void);
+
+static void chx_spin_init (struct chx_spinlock *lk)
+{
+  pthread_spin_init (&lk->lk, PTHREAD_PROCESS_PRIVATE);
+}
+
+static void chx_spin_lock (struct chx_spinlock *lk)
+{
+  pthread_spin_lock (&lk->lk);
+}
+
+static void chx_spin_unlock (struct chx_spinlock *lk)
+{
+  assert (lk->lk <= 0);
+  pthread_spin_unlock (&lk->lk);
+}
+#else
+static void chx_smp_kick_cpu (void)
+{
+}
+
+static void chx_smp_mark_nothing_ready (void)
+{
+}
+
+static void chx_spin_init (struct chx_spinlock *lk)
+{
+  (void)lk;
+}
+
+static void chx_spin_lock (struct chx_spinlock *lk)
+{
+  (void)lk;
+}
+
+static void chx_spin_unlock (struct chx_spinlock *lk)
+{
+  (void)lk;
+}
+#endif
