@@ -13,7 +13,6 @@ typedef ucontext_t tcontext_t;
 
 #ifdef SMP
 static void chx_smp_kick_cpu (void);
-static void chx_smp_mark_nothing_ready (void);
 
 static void chx_spin_init (struct chx_spinlock *lk)
 {
@@ -32,10 +31,6 @@ static void chx_spin_unlock (struct chx_spinlock *lk)
 }
 #else
 static void chx_smp_kick_cpu (void)
-{
-}
-
-static void chx_smp_mark_nothing_ready (void)
 {
 }
 

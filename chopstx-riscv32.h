@@ -59,3 +59,22 @@ struct tcontext {
 typedef struct tcontext tcontext_t;
 
 #define CHOPSTX_THREAD_SIZE 160
+
+static void chx_smp_kick_cpu (void)
+{
+}
+
+static void chx_spin_init (struct chx_spinlock *lk)
+{
+  (void)lk;
+}
+
+static void chx_spin_lock (struct chx_spinlock *lk)
+{
+  (void)lk;
+}
+
+static void chx_spin_unlock (struct chx_spinlock *lk)
+{
+  (void)lk;
+}

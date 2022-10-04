@@ -210,12 +210,6 @@ chx_smp_kick_cpu (void)
 	return;
       }
 }
-
-static void
-chx_smp_mark_nothing_ready (void)
-{
-  cpu_info_table.status[cpu_id] = 0;
-}
 #endif
 
 /* NOTE: Called holding the cpu_sched_lock.  */
@@ -232,11 +226,19 @@ chx_idle (void)
   sigaddset (&setsigcpu, CHX_SIGCPU);
 #endif
 
-  while (tp_next == NULL)
-    {
-      int sig;
-      sigset_t set;
+  chx_spin_lock (&q_ready.lock);
+  tp_next = chx_ready_pop ();
+  if (tp_next)
+    return tp_next;
 
+  cpu_info_table.status[cpu_id] = 0;
+
+  while (1)
+    {
+#ifdef SMP
+      assert (cpu_info_table.status[cpu_id] == 0);
+#endif
+      chx_spin_unlock (&q_ready.lock);
       sigfillset (&set);
       if (sigwait (&set, &sig))
 	continue;
@@ -264,6 +266,11 @@ chx_idle (void)
 	      && (sig == SIGINT || sig == SIGTERM))
 	    exit (1);
 	}
+
+      if (tp_next)
+	break;
+
+      cpu_info_table.status[cpu_id] = 0;
     }
 
 #ifdef SMP
