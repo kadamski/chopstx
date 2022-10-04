@@ -237,9 +237,6 @@ chx_idle (void)
 
   while (1)
     {
-#ifdef SMP
-      assert (cpu_info_table.status[cpu_id] == 0);
-#endif
       chx_spin_unlock (&q_ready.lock);
       sigfillset (&set);
       if (sigwait (&set, &sig))
@@ -300,7 +297,6 @@ chx_handle_intr (uint32_t irq_num)
   struct chx_thread *tp_next;
   struct chx_thread *running = chx_running ();
 
-  assert (running);
   chx_spin_lock (&q_ready.lock);
   chx_recv_irq (irq_num);
   chx_spin_lock (&running->lock);
@@ -333,7 +329,6 @@ sigalrm_handler (int sig, siginfo_t *siginfo, void *arg)
   (void)sig;
   (void)siginfo;
 
-  assert (running);
   chx_spin_lock (&q_ready.lock);
   chx_timer_expired ();
   chx_spin_lock (&running->lock);
@@ -342,10 +337,70 @@ sigalrm_handler (int sig, siginfo_t *siginfo, void *arg)
   chx_sigmask (uc);
 }
 
+#ifdef SMP
+static void *
+idle_thread_start (void)
+{
+  struct chx_thread *tp_next;
+
+  if (chx_tp_prev)
+    chx_spin_unlock ((struct chx_spinlock *)&chx_tp_prev->lock);
+  chx_spin_unlock (&chx_swapcontext_lock);
+  chx_spin_unlock (&q_ready.lock);
+
+  tp_next = chx_idle ();
+  chx_spin_lock (&chx_swapcontext_lock);
+  chx_set_running (tp_next);
+  chx_tp_prev = NULL;
+  chx_tp_next = tp_next;
+  setcontext (&tp_next->tc);
+
+  /* NOTREACHED */
+  return NULL;
+}
+
+static void *
+cpu_start (void *arg)
+{
+  char stack_for_idle[IDLE_STACK_SIZE];
+  int id = (long)arg;
+  tcontext_t *tc;
+
+  cpu_id = id;
+
+  tc = &idle_thread_tc[cpu_id];
+
+  chx_cpu_sched_lock ();
+  chx_spin_lock (&q_ready.lock);
+
+  getcontext (tc);
+  tc->uc_stack.ss_sp = stack_for_idle;
+  tc->uc_stack.ss_size = sizeof (stack_for_idle);
+  tc->uc_link = NULL;
+  makecontext (tc, (void (*)(void))idle_thread_start, 0);
+
+  chx_spin_lock (&chx_swapcontext_lock);
+  chx_tp_prev = NULL;
+  setcontext (tc);
+
+  /* NOTREACHED */
+  return NULL;
+}
+#endif
+
+#ifdef SMP
+static char stack_for_idle0[IDLE_STACK_SIZE];
+#endif
+
 static void
 chx_init_arch (struct chx_thread *tp)
 {
   struct sigaction sa;
+#ifdef SMP
+  long i;
+
+  chx_spin_init (&chx_swapcontext_lock);
+#endif
 
   sigemptyset (&ss_cur);
 
@@ -354,7 +409,39 @@ chx_init_arch (struct chx_thread *tp)
   sa.sa_flags = SA_SIGINFO|SA_RESTART;
   sigaction (SIGALRM, &sa, NULL); 
 
+#ifdef SMP
+  /*
+   * Delivery of CHX_SIGCPU is only done synchronously (always caught
+   * by sigwait), so, no signal handler setup.
+   */
+
+  for (i = 0; i < MAX_CPU; i++)
+    {
+      pthread_t cpu;
+
+      if (i == 0)
+	{
+	  tcontext_t *tc = &idle_thread_tc[0];
+
+	  getcontext (tc);
+	  tc->uc_stack.ss_sp = stack_for_idle0;
+	  tc->uc_stack.ss_size = sizeof (stack_for_idle0);
+	  tc->uc_link = NULL;
+	  makecontext (tc, (void (*)(void))idle_thread_start, 0);
+	  cpu = pthread_self ();
+	  cpu_info_table.status[0] = 1;
+	}
+      else
+	{
+	  pthread_create (&cpu, NULL, cpu_start, (void *)i);
+	  cpu_info_table.status[i] = 1;
+	}
+
+      cpu_info_table.tid[i] = cpu;
+    }
+#else
   getcontext (&tp->tc);
+#endif
   chx_set_running (tp);
 }
 

@@ -719,6 +719,7 @@ chx_init (struct chx_thread *tp)
   chx_spin_init (&q_ready.lock);
   chx_spin_init (&tp->lock);
   chx_thread_init (tp, (CHX_FLAGS_MAIN | CHX_PRIO_MAIN_INIT));
+  chx_spin_lock (&q_ready.lock);
   chx_init_arch (tp);
   chx_spin_init (&chx_enable_sleep_lock);
   q_timer.q.next = q_timer.q.prev = &q_timer.q;
@@ -729,6 +730,7 @@ chx_init (struct chx_thread *tp)
   chx_spin_init (&q_intr.lock);
   chx_spin_unlock (&tp->lock);
   chopstx_main = (chopstx_t)tp;
+  chx_spin_unlock (&q_ready.lock);
   chx_cpu_sched_unlock ();
 }
 
