@@ -102,7 +102,7 @@ static struct chx_queue q_join;
 static struct chx_queue q_intr;
 
 /* Forward declaration(s). */
-static int chx_wakeup (struct chx_pq *p);
+static void chx_wakeup (struct chx_pq *p);
 static struct chx_thread *chx_timer_insert (struct chx_thread *tp, uint32_t usec);
 static uint32_t chx_timer_dequeue (struct chx_thread *tp);
 
@@ -639,8 +639,8 @@ chx_yield (struct chx_thread *running)
 
     no_yield:
       v = running->v;
-      chx_spin_unlock (&q_ready.lock);
       chx_spin_unlock (&running->lock);
+      chx_spin_unlock (&q_ready.lock);
       chx_cpu_sched_unlock ();
       return v;
     }
@@ -734,12 +734,10 @@ chx_init (struct chx_thread *tp)
 /*
  * Wakeup the thread TP.   Called with schedule lock held.
  */
-static int
+static void
 chx_wakeup (struct chx_pq *pq)
 {
-  int yield = 0;
   struct chx_thread *tp;
-  struct chx_thread *running = chx_running ();
 
   if (pq->flag_is_proxy)
     {
@@ -756,15 +754,6 @@ chx_wakeup (struct chx_pq *pq)
 	  tp->v = (uintptr_t)chx_timer_dequeue (tp);
 
 	  chx_ready_enqueue (tp);
-	  if (!running)
-	    yield = 1;
-	  else
-	    {
-	      chx_spin_lock (&running->lock);
-	      if (tp->prio > running->prio)
-		yield = 1;
-	      chx_spin_unlock (&running->lock);
-	    }
 	}
       chx_spin_unlock (&tp->lock);
     }
@@ -773,18 +762,7 @@ chx_wakeup (struct chx_pq *pq)
       tp = (struct chx_thread *)pq;
       tp->v = (uintptr_t)1;
       chx_ready_enqueue (tp);
-      if (!running)
-	yield = 1;
-      else
-	{
-	  chx_spin_lock (&running->lock);
-	  if (tp->prio > running->prio)
-	    yield = 1;
-	  chx_spin_unlock (&running->lock);
-	}
     }
-
-  return yield;
 }
 
 
@@ -1242,29 +1220,20 @@ void
 chopstx_cond_signal (chopstx_cond_t *cond)
 {
   struct chx_pq *p;
-  int yield = 0;
+  struct chx_thread *running = chx_running ();
 
   chx_cpu_sched_lock ();
   chx_spin_lock (&q_ready.lock);
+  chx_spin_lock (&running->lock);
   chx_spin_lock (&cond->lock);
   p = ll_pop (&cond->q);
   if (p)
     {
-      yield = chx_wakeup (p);
+      chx_wakeup (p);
       chx_spin_unlock (&p->lock);
     }
   chx_spin_unlock (&cond->lock);
-  if (yield)
-    {
-      struct chx_thread *running = chx_running ();
-      chx_spin_lock (&running->lock);
-      chx_yield (running);
-    }
-  else
-    {
-      chx_spin_unlock (&q_ready.lock);
-      chx_cpu_sched_unlock ();
-    }
+  chx_yield (running);
 }
 
 
@@ -1278,28 +1247,19 @@ void
 chopstx_cond_broadcast (chopstx_cond_t *cond)
 {
   struct chx_pq *p;
-  int yield = 0;
+  struct chx_thread *running = chx_running ();
 
   chx_cpu_sched_lock ();
   chx_spin_lock (&q_ready.lock);
+  chx_spin_lock (&running->lock);
   chx_spin_lock (&cond->lock);
   while ((p = ll_pop (&cond->q)))
     {
-      yield |= chx_wakeup (p);
+      chx_wakeup (p);
       chx_spin_unlock (&p->lock);
     }
   chx_spin_unlock (&cond->lock);
-  if (yield)
-    {
-      struct chx_thread *running = chx_running ();
-      chx_spin_lock (&running->lock);
-      chx_yield (running);
-    }
-  else
-    {
-      chx_spin_lock (&q_ready.lock);
-      chx_cpu_sched_unlock ();
-    }
+  chx_yield (running);
 }
 
 
