@@ -105,45 +105,6 @@ static struct chx_thread *chx_timer_insert (struct chx_thread *tp, uint32_t usec
 static uint32_t chx_timer_dequeue (struct chx_thread *tp);
 
 
-
-/**************/
-#ifdef SMP
-static void chx_smp_kick_cpu (void);
-static void chx_smp_mark_nothing_ready (void);
-
-static void chx_spin_init (struct chx_spinlock *lk)
-{
-  pthread_spin_init (&lk->lk, PTHREAD_PROCESS_PRIVATE);
-}
-
-static void chx_spin_lock (struct chx_spinlock *lk)
-{
-  pthread_spin_lock (&lk->lk);
-}
-
-#include <assert.h>
-static void chx_spin_unlock (struct chx_spinlock *lk)
-{
-  assert (lk->lk <= 0);
-  pthread_spin_unlock (&lk->lk);
-}
-#else
-static void chx_spin_init (struct chx_spinlock *lk)
-{
-  (void)lk;
-}
-
-static void chx_spin_lock (struct chx_spinlock *lk)
-{
-  (void)lk;
-}
-
-static void chx_spin_unlock (struct chx_spinlock *lk)
-{
-  (void)lk;
-}
-#endif
-
 /**************/
 struct chx_pq {
   struct chx_qh q;
@@ -662,9 +623,7 @@ chx_yield (struct chx_thread *running)
       if (running->flag_sched_rr)
 	chx_timer_dequeue (running);
       chx_ready_enqueue (running);
-#ifdef SMP
       chx_smp_kick_cpu ();
-#endif
     }
   return voluntary_context_switch (running, tp);
 }

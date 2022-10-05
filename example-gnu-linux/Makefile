@@ -23,7 +23,8 @@ OBJCOPY   = $(CROSS)objcopy
 
 MCU   = none
 CWARN = -Wall -Wextra -Wstrict-prototypes
-DEFS  = -DGNU_LINUX_EMULATION -DUSE_SYS_BOARD_ID
+DEFS  = -DGNU_LINUX_EMULATION -DUSE_SYS_BOARD_ID \
+        -DCHX_PRIO_MAIN_INIT=2 -DMAX_CPU=4 -DSMP=1
 OPT   = -g -O3 # -Os
 LIBS  = -lpthread
 

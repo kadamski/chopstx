@@ -18,7 +18,7 @@
  * General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  *
  * As additional permission under GNU GPL version 3 section 7, you may
  * distribute non-source form of the Program without the copy of the
@@ -90,6 +90,7 @@ chx_set_running (struct chx_thread *r)
 {
   running_one = r;
 }
+#endif
 
 
 /* Data Memory Barrier.  */
@@ -102,7 +103,11 @@ chx_dmb (void)
 static void preempted_context_switch (struct chx_thread *running,
 				      struct chx_thread *tp_next);
 
+#ifdef SMP
+static sigset_t ss_cur[MAX_CPU];
+#else
 static sigset_t ss_cur;
+#endif
 
 static void
 chx_systick_init_arch (void)
@@ -148,7 +153,11 @@ ticks_to_usec (uint32_t ticks)
 static void
 chx_enable_intr (uint8_t irq_num)
 {
+#ifdef SMP
+  sigdelset (&ss_cur[cpu_id], irq_num);
+#else
   sigdelset (&ss_cur, irq_num);
+#endif
 }
 
 static void
@@ -160,9 +169,15 @@ chx_clr_intr (uint8_t irq_num)
 static int
 chx_disable_intr (uint8_t irq_num)
 {
+#ifdef SMP
+  int already_disabled = sigismember (&ss_cur[cpu_id], irq_num);
+
+  sigaddset (&ss_cur[cpu_id], irq_num);
+#else
   int already_disabled = sigismember (&ss_cur, irq_num);
 
   sigaddset (&ss_cur, irq_num);
+#endif
   return already_disabled;
 }
 
@@ -183,13 +198,21 @@ chx_cpu_sched_lock (void)
   sigset_t ss;
 
   sigfillset (&ss);
+#ifdef SMP
+  pthread_sigmask (SIG_BLOCK, &ss, &ss_cur[cpu_id]);
+#else
   pthread_sigmask (SIG_BLOCK, &ss, &ss_cur);
+#endif
 }
 
 static void
 chx_cpu_sched_unlock (void)
 {
+#ifdef SMP
+  pthread_sigmask (SIG_SETMASK, &ss_cur[cpu_id], NULL);
+#else
   pthread_sigmask (SIG_SETMASK, &ss_cur, NULL);
+#endif
 }
 
 #ifdef SMP
@@ -312,7 +335,11 @@ chx_sigmask (ucontext_t *uc)
    * In user-level, sigset_t is big, but only the first word
    * is used by the kernel.
    */
+#ifdef SMP
+  memcpy (&uc->uc_sigmask, &ss_cur[cpu_id], sizeof (uint64_t));
+#else
   memcpy (&uc->uc_sigmask, &ss_cur, sizeof (uint64_t));
+#endif
 }
 
 static void
@@ -394,9 +421,17 @@ chx_init_arch (struct chx_thread *tp)
   long i;
 
   chx_spin_init (&chx_swapcontext_lock);
-#endif
 
+  cpu_id = 0;
+
+  for (i = 0; i < MAX_CPU; i++)
+    {
+      sigemptyset (&ss_cur[i]);
+      sigaddset (&ss_cur[i], CHX_SIGCPU);
+    }
+#else
   sigemptyset (&ss_cur);
+#endif
 
   sa.sa_sigaction = sigalrm_handler;
   sigfillset (&sa.sa_mask);
@@ -436,6 +471,7 @@ chx_init_arch (struct chx_thread *tp)
 #else
   getcontext (&tp->tc);
 #endif
+
   chx_set_running (tp);
 }
 
@@ -500,9 +536,7 @@ preempted_context_switch (struct chx_thread *running,
    * of the thread, and the condition of chx_sched function which
    * mandates holding cpu_sched_lock.
    */
-  chx_set_running (tp_next);
-  chx_spin_unlock (&tp_next->lock);
-  swapcontext (&tp_prev->tc, tc);
+  chx_swapcontext (running, tp_next);
 }
 
 
@@ -511,36 +545,17 @@ voluntary_context_switch (struct chx_thread *running,
 			  struct chx_thread *tp_next)
 {
   struct chx_thread *tp;
-  tcontext_t *tc_prev, *tc_next;
   uintptr_t v;
 
-  tc_prev = &running->tc;
-  chx_spin_unlock (&running->lock);
-  if (!tp_next)
-    {
-      chx_set_running (NULL);
-      tp_next = chx_idle ();
-      if (running != tp_next)
-	{
-	  tc_next = &tp_next->tc;
-	  chx_set_running (tp_next);
-	  chx_spin_unlock (&tp_next->lock);
-	  swapcontext (tc_prev, tc_next);
-	}
-    }
-  else
-    {
-      tc_next = &tp_next->tc;
-      chx_set_running (tp_next);
-      chx_spin_unlock (&tp_next->lock);
-      swapcontext (tc_prev, tc_next);
-    }
-  chx_cpu_sched_unlock ();
+  chx_swapcontext (running, tp_next);
 
   tp = chx_running ();
+
+  /* TP == RUNNING here.  */
   chx_spin_lock (&tp->lock);
   v = tp->v;
   chx_spin_unlock (&tp->lock);
+  chx_cpu_sched_unlock ();
   return v;
 }
 

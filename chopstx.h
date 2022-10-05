@@ -57,9 +57,17 @@ chopstx_create (uint32_t flags_and_prio,
 
 void chopstx_usec_wait (uint32_t usec);
 
+#ifdef SMP
+#include <pthread.h>
+
+struct chx_spinlock {
+  pthread_spinlock_t lk;
+};
+#else
 struct chx_spinlock {
   /* nothing for uniprocessor.  */
 };
+#endif
 
 typedef struct chx_mtx {
   struct chx_qh q;
