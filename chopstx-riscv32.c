@@ -19,7 +19,7 @@
  * General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  *
  * As additional permission under GNU GPL version 3 section 7, you may
  * distribute non-source form of the Program without the copy of the
@@ -461,7 +461,8 @@ chx_idle (void)
 
   while (tp_next == NULL)
     {
-      register uint32_t irq_num asm ("a0");
+      struct chx_thread *running;
+      register uint32_t irq_num asm ("a1");
 
       chx_prepare_sleep_mode ();  /* MCU specific sleep setup */
 
@@ -475,14 +476,16 @@ chx_idle (void)
 	: "=r" (irq_num));
       /* Note: here, interrupt is masked again.  */
 
+      running = chx_running ();
+
       if (irq_num == SWINT_IRQ)
 	chx_sw_int (0);
       else if (irq_num == TIMER_IRQ)
-	tp_next = chx_timer_expired ();
+	tp_next = chx_timer_expired (running);
       else if (irq_num == MEMERR_IRQ)
 	memory_error ();
       else
-	tp_next = chx_recv_irq (irq_num);
+	tp_next = chx_recv_irq (running, irq_num);
     }
 
   return tp_next;
@@ -496,6 +499,7 @@ voluntary_context_switch (struct chx_thread *running,
 {
   register uintptr_t result asm ("a0");
 
+  (void)running;		/* We can just use "tp" register.  */
   asm volatile (
 	/* Here, %0 (a0) points to pointer (struct chx_thread *) to be
 	 * switched.  We get the thread context pointer adding the
@@ -590,6 +594,7 @@ chopstx_create_arch (uintptr_t stack_addr, size_t stack_size,
 static void __attribute__ ((naked,aligned(4)))
 chx_handle_intr (void)
 {
+  struct chx_thread *running;
   struct chx_thread *tp_next;
   uint32_t irq_num;
 
@@ -632,15 +637,16 @@ chx_handle_intr (void)
 	"srli	%0,%0,20"       /* Take lower 12-bit of MCAUSE */
 	: "=r" (irq_num));
 
+  running = chx_running ();
   tp_next = NULL;
   if (irq_num == SWINT_IRQ)
     chx_sw_int (0);
   else if (irq_num == TIMER_IRQ)
-    tp_next = chx_timer_expired ();
+    tp_next = chx_timer_expired (running);
   else if (irq_num == MEMERR_IRQ)
     memory_error ();
   else
-    tp_next = chx_recv_irq (irq_num);
+    tp_next = chx_recv_irq (running, irq_num);
 
   if (!tp_next)
     asm volatile (
@@ -649,8 +655,6 @@ chx_handle_intr (void)
 	"lw	tp,16(sp)\n\t"  /* Application is free to other use of TP */
 	"lw	sp,8(sp)\n\t"
 	"mret");
-
-  tp_next = chx_running_preempted (tp_next);
 
   asm volatile (
 	"# Involuntary context switch\n\t"
