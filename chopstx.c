@@ -995,7 +995,7 @@ requeue (struct chx_thread *tp)
       chx_spin_lock (&tp->lock);
       if (tp->parent == (struct chx_qh *)cond)
 	ll_prio_enqueue (ll_dequeue ((struct chx_pq *)tp),
-			 (struct chx_qh *)tp->parent);
+			 (struct chx_qh *)cond);
       chx_spin_unlock (&cond->lock);
       /* We don't know who can wake up this thread.  */
     }
