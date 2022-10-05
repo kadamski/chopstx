@@ -378,9 +378,9 @@ chx_ready_enqueue (struct chx_thread *tp)
   ll_prio_enqueue ((struct chx_pq *)tp, &q_ready.q);
 }
 
-static void chx_timer_expired (void);
-static void chx_recv_irq (uint32_t irq_num);
-static struct chx_thread *chx_possibly_preempted (struct chx_thread *running);
+static struct chx_thread *chx_timer_expired (struct chx_thread *running);
+static struct chx_thread *chx_recv_irq (struct chx_thread *running,
+					uint32_t irq_num);
 
 /*
  * Here comes architecture specific code.
@@ -510,8 +510,39 @@ chx_timer_dequeue (struct chx_thread *tp)
 }
 
 
-static void
-chx_timer_expired (void)
+static struct chx_thread *
+chx_possibly_preempted (struct chx_thread *running)
+{
+  struct chx_thread *tp;
+
+  tp = chx_ready_pop ();
+  if (tp == NULL)
+    return NULL;
+
+  if (running == NULL)
+    return tp;
+
+  if (tp->prio > running->prio)
+    {
+      if (running->flag_sched_rr)
+	{
+	  chx_timer_dequeue (running);
+	  chx_ready_enqueue (running);
+	}
+      else
+	chx_ready_push (running);
+      chx_smp_kick_cpu ();
+      return tp;
+    }
+
+  chx_ready_enqueue (tp);
+  chx_spin_unlock (&tp->lock);
+  return NULL;
+}
+
+
+static struct chx_thread *
+chx_timer_expired (struct chx_thread *running)
 {
   struct chx_thread *tp;
 
@@ -548,11 +579,16 @@ chx_timer_expired (void)
 	chx_set_timer (&q_timer.q, next_tick);
     }
   chx_spin_unlock (&q_timer.lock);
+
+  if (running)
+    chx_spin_lock (&running->lock);
+  return chx_possibly_preempted (running);
 }
 
 
-static void
-chx_recv_irq (uint32_t irq_num)
+
+static struct chx_thread *
+chx_recv_irq (struct chx_thread *running, uint32_t irq_num)
 {
   struct chx_qh *q, *q_next;
 
@@ -576,39 +612,10 @@ chx_recv_irq (uint32_t irq_num)
       chx_spin_unlock (&p->lock);
     }
   chx_spin_unlock (&q_intr.lock);
-}
 
-
-static struct chx_thread *
-chx_possibly_preempted (struct chx_thread *running)
-{
-  struct chx_thread *tp;
-
-  tp = chx_ready_pop ();
-  if (tp == NULL)
-    return NULL;
-
-  if (running == NULL)
-    return tp;
-
-  if (tp->prio > running->prio)
-    {
-      if (running->flag_sched_rr)
-	{
-	  chx_timer_dequeue (running);
-	  chx_ready_enqueue (running);
-	}
-      else
-	chx_ready_push (running);
-#ifdef SMP
-      chx_smp_kick_cpu ();
-#endif
-      return tp;
-    }
-
-  chx_ready_enqueue (tp);
-  chx_spin_unlock (&tp->lock);
-  return NULL;
+  if (running)
+    chx_spin_lock (&running->lock);
+  return chx_possibly_preempted (running);
 }
 
 

@@ -245,8 +245,7 @@ chx_idle (void)
       if (sig == SIGALRM)
 	{
 	  chx_spin_lock (&q_ready.lock);
-	  chx_timer_expired ();
-	  tp_next = chx_possibly_preempted (NULL);
+	  tp_next = chx_timer_expired (NULL);
 	}
 #ifdef SMP
       else if (sig == CHX_SIGCPU)
@@ -258,8 +257,7 @@ chx_idle (void)
       else
 	{
 	  chx_spin_lock (&q_ready.lock);
-	  chx_recv_irq ((uint32_t)sig);
-	  tp_next = chx_possibly_preempted (NULL);
+	  tp_next = chx_recv_irq (NULL, (uint32_t)sig);
 	  /* Exit when there is no waiter and it's INT or TERM.	 */
 	  if (tp_next == NULL
 	      && (sig == SIGINT || sig == SIGTERM))
@@ -298,9 +296,7 @@ chx_handle_intr (uint32_t irq_num)
   struct chx_thread *running = chx_running ();
 
   chx_spin_lock (&q_ready.lock);
-  chx_recv_irq (irq_num);
-  chx_spin_lock (&running->lock);
-  tp_next = chx_possibly_preempted (running);
+  tp_next = chx_recv_irq (running, irq_num);
   preempted_context_switch (running, tp_next);
 }
 
@@ -330,9 +326,7 @@ sigalrm_handler (int sig, siginfo_t *siginfo, void *arg)
   (void)siginfo;
 
   chx_spin_lock (&q_ready.lock);
-  chx_timer_expired ();
-  chx_spin_lock (&running->lock);
-  tp_next = chx_possibly_preempted (running);
+  tp_next = chx_timer_expired (running);
   preempted_context_switch (running, tp_next);
   chx_sigmask (uc);
 }
