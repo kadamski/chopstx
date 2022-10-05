@@ -13,6 +13,7 @@ typedef struct tcontext tcontext_t;
 
 #define CHOPSTX_THREAD_SIZE 64
 
+#ifdef CHOPSTX_PRIO_BITS
 static void chx_smp_kick_cpu (void)
 {
 }
@@ -31,3 +32,4 @@ static void chx_spin_unlock (struct chx_spinlock *lk)
 {
   (void)lk;
 }
+#endif

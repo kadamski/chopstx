@@ -48,8 +48,6 @@
 #define PREEMPTION_USEC 1000 /* 1ms */
 #endif
 
-#define MAX_PRIO (255+1)
-
 #ifndef MHZ
 #define MHZ 72
 #endif

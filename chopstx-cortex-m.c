@@ -19,7 +19,7 @@
  * General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  *
  * As additional permission under GNU GPL version 3 section 7, you may
  * distribute non-source form of the Program without the copy of the
@@ -253,101 +253,82 @@ chx_cpu_sched_unlock (void)
 }
 
 
-static void __attribute__ ((naked, used))
-involuntary_context_switch (struct chx_thread *tp_next)
+static void __attribute__ ((naked))
+involuntary_context_switch (struct chx_thread *running,
+			    struct chx_thread *tp_next)
 {
-  register struct chx_thread *tp_current asm ("r1");
-
-  asm (
-	"ldr	r2, =running_one\n\t"
-	"ldr	r1, [r2]"
-	: "=r" (tp_current)
-	: /* no input */
-	: "r2");
-
-  if (!tp_current)
-    /* It's idle thread.  No need to save registers.  */
-    ;
-  else
-    {
-      /* Save registers onto CHX_THREAD struct.  */
-      asm volatile (
-	"adds	%0, #20\n\t"
-	"stm	%0!, {r4, r5, r6, r7}\n\t"
-	"mov	r2, r8\n\t"
-	"mov	r3, r9\n\t"
-	"mov	r4, r10\n\t"
-	"mov	r5, r11\n\t"
-	"mrs	r6, PSP\n\t" /* r13(=SP) in user space.  */
-	"stm	%0!, {r2, r3, r4, r5, r6}"
-	: "=r" (tp_current)
-	: "0" (tp_current)
-	  /*
-	   * Memory clobber constraint here is not accurate, but this
-	   * works.  R7 keeps its value, but having "r7" here prevents
-	   * use of R7 before this asm statement.
-	   */
-	: "cc", "r2", "r3", "r4", "r5", "r6", "r7", "memory");
-
-      tp_next = chx_running_preempted (tp_next);
-    }
+  /* Save registers onto CHX_THREAD struct.  */
+  asm volatile ("adds	%0, #20\n\t"
+		"stm	%0!, {r4, r5, r6, r7}\n\t"
+		"mov	r2, r8\n\t"
+		"mov	r3, r9\n\t"
+		"mov	r4, r10\n\t"
+		"mov	r5, r11\n\t"
+		"mrs	r6, PSP\n\t" /* r13(=SP) in user space.  */
+		"stm	%0!, {r2, r3, r4, r5, r6}\n\t"
+		"mov	%0, %2"
+		: "=r" (running)
+		: "0" (running), "r" (tp_next)
+		  /*
+		   * Memory clobber constraint here is not accurate, but this
+		   * works.  R7 keeps its value, but having "r7" here prevents
+		   * use of R7 before this asm statement.
+		   */
+		: "cc", "r2", "r3", "r4", "r5", "r6", "r7", "memory");
 
   /* Registers on stack (PSP): r0, r1, r2, r3, r12, lr, pc, xpsr */
 
   asm volatile (
 	/* Now, r0 points to the thread to be switched.  */
-	/* Put it to *running.  */
+	/* Put it to *running_one.  */
 	"ldr	r1, =running_one\n\t"
 	/* Update running: chx_set_running */
-	"str	r0, [r1]\n\t"
+	"str	%0, [r1]\n\t"
 	/**/
-	"adds	r0, #20\n\t"
-	"ldm	r0!, {r4, r5, r6, r7}\n\t"
+	"adds	%0, #20\n\t"
+	"ldm	%0!, {r4, r5, r6, r7}\n\t"
 #if defined(__ARM_ARCH_6M__)
-	"ldm	r0!, {r1, r2, r3}\n\t"
+	"ldm	%0!, {r1, r2, r3}\n\t"
 	"mov	r8, r1\n\t"
 	"mov	r9, r2\n\t"
 	"mov	r10, r3\n\t"
-	"ldm	r0!, {r1, r2}\n\t"
+	"ldm	%0!, {r1, r2}\n\t"
 	"mov	r11, r1\n\t"
 	"msr	PSP, r2\n\t"
 #else
-	"ldr	r8, [r0], #4\n\t"
-	"ldr	r9, [r0], #4\n\t"
-	"ldr	r10, [r0], #4\n\t"
-	"ldr	r11, [r0], #4\n\t"
-	"ldr	r1, [r0], #4\n\t"
+	"ldr	r8, [%0], #4\n\t"
+	"ldr	r9, [%0], #4\n\t"
+	"ldr	r10, [%0], #4\n\t"
+	"ldr	r11, [%0], #4\n\t"
+	"ldr	r1, [%0], #4\n\t"
 	"msr	PSP, r1\n\t"
 #endif
-	"movs	r0, #0\n\t"
-	"subs	r0, #3\n\t" /* EXC_RETURN to a thread with PSP */
-	"bx	r0"
-	: /* no output */ : "r" (tp_next) : "memory");
+	"movs	%0, #0\n\t"
+	"subs	%0, #3\n\t" /* EXC_RETURN to a thread with PSP */
+	"bx	%0"
+	: /* no output */ : "r" (running) : "memory");
 }
 
-static struct chx_thread *chx_timer_expired (void) __attribute__ ((noinline,used));
-static struct chx_thread *chx_recv_irq (uint32_t irq_num) __attribute__ ((noinline,used));
 
 void __attribute__ ((naked))
 chx_handle_intr (void)
 {
-  register struct chx_thread *tp_next asm ("r0");;
+  register uint32_t irq_num asm ("r1");
+  struct chx_thread *tp_next;
+  struct chx_thread *running = chx_running ();
 
   asm volatile ("mrs	%0, IPSR\n\t"
 		/* Exception # - 16 = interrupt number.  */
-		"subs	%0, #16\n\t"
-		"bpl	0f\n\t"
-		"bl	chx_timer_expired\n\t"
-		"b	1f\n"
-	      "0:\n\t"
-		"bl	chx_recv_irq\n"
-	      "1:"
-		: "=r" (tp_next) : /* no input */ : "cc", "memory");
+		"subs	%0, #16"
+		: "=r" (irq_num) : /* no input */ : "cc");
+
+  if (irq_num == 0)
+    tp_next = chx_timer_expired (running);
+  else
+    tp_next = chx_recv_irq (running, irq_num);
 
   if (tp_next)
-    asm volatile (
-	"b	involuntary_context_switch"
-	: /*no input */ : /* no input */ : "memory");
+    involuntary_context_switch (running, tp_next);
   else
     asm volatile (
 	"movs	r0, #0\n\t"
@@ -367,19 +348,18 @@ chx_init_arch (struct chx_thread *tp)
 /* Called with tp->lock held, resume with ->lock released.  */
 static uintptr_t
 voluntary_context_switch (struct chx_thread *running,
-			  struct chx_thread *tp_next)
+			  struct chx_thread *tp_next_arg)
 {
   register uintptr_t result asm ("r0");
-
+  register struct chx_thread *tp_next asm ("r1");
 #if defined(__ARM_ARCH_7M__) || defined(__ARM_ARCH_7EM__)
   asm volatile (
 	"svc	#0\n\t"
-	"add	r1, r0, #16\n\t"
-	"ldr	r0, [r1]"	/* Get tp->v */
-	: "=r" (result) : "0" (tp_next): "r1", "memory");
+	"add	%1, %0, #16\n\t"
+	"ldr	%0, [%1]"	/* Get tp->v */
+	: "=r" (result), "=r" (tp_next)
+	: "0" (running), "1" (tp_next_arg): "memory");
 #else
-  register struct chx_thread *tp asm ("r1");
-
   /* Build stack data as if it were an exception entry.
    * And set the stack top to have RUNNNING.
    */
@@ -393,38 +373,36 @@ voluntary_context_switch (struct chx_thread *running,
    * pc:  return address (= .L_CONTEXT_SWITCH_FINISH)
    * psr: INITIAL_XPSR          scratch
    */
-  asm ("mov	%0, lr\n\t"
-       "ldr	r2, =.L_CONTEXT_SWITCH_FINISH\n\t"
-       "movs	r3, #128\n\t"
-       "lsls	r3, #17\n\t"
-       "push	{%0, r2, r3}\n\t"
-       "movs	%0, #0\n\t"
-       "mov	r2, %0\n\t"
-       "mov	r3, %0\n\t"
-       "push	{%0, r2, r3}\n\t"
-       "ldr	r2, =running_one\n\t"
-       "ldr	%0, [r2]\n\t"
-       "push	{%0, r3}\n\t"
-       : "=r" (tp)
-       : /* no input */
-       : "cc", "r2", "r3", "memory");
+  asm ("mov	r2, lr\n\t"
+       "ldr	r3, =.L_CONTEXT_SWITCH_FINISH\n\t"
+       "movs	r4, #128\n\t"
+       "lsls	r4, #17\n\t"
+       "push	{r2, r3, r4}\n\t"
+       "movs	r2, #0\n\t"
+       "mov	r3, r2\n\t"
+       "mov	r4, r2\n\t"
+       "push	{r2, r3, r4}\n\t"
+       "push	{%1, r2}\n\t"
+       : "=r" (tp_next)
+       : "r" (running), "0" (tp_next_arg)
+       : "cc", "r2", "r3", "r4", "memory");
 
   /* Save registers onto CHX_THREAD struct.  */
-  asm ("adds	r1, #20\n\t"
-       "stm	r1!, {r4, r5, r6, r7}\n\t"
+  asm ("adds	%0, #20\n\t"
+       "stm	%0!, {r4, r5, r6, r7}\n\t"
        "mov	r2, r8\n\t"
        "mov	r3, r9\n\t"
        "mov	r4, r10\n\t"
        "mov	r5, r11\n\t"
        "mov	r6, sp\n\t"
-       "stm	r1!, {r2, r3, r4, r5, r6}\n\t"
-       "subs	r1, #56"
-       : /* no output */
-       : "r" (tp)
+       "stm	%0!, {r2, r3, r4, r5, r6}\n\t"
+       "mov	%0, %2"
+       : "=r" (running)
+       : "0" (running), "r" (tp_next)
        : "cc", "r2", "r3", "r4", "r5", "r6", "r7", "memory");
 
   asm volatile (/* Now, r0 points to the thread to be switched.  */
-		/* Put it to *running.  */
+		/* Put it to *running_one.  */
 		"ldr	r1, =running_one\n\t"
 		/* Update running.  */
 		"str	r0, [r1]\n\t"
@@ -501,7 +479,7 @@ voluntary_context_switch (struct chx_thread *running,
 		"adds	r0, #16\n\t"
 		"ldr	r0, [r0]"       /* Get tp->v */
 		: "=r" (result)		/* Return value in R0 */
-		: "0" (tp_next)
+		: "0" (running)
 		: "cc", "memory");
 #endif
   return result;
@@ -549,20 +527,18 @@ svc (void)
 {
   register uint32_t tp_next asm ("r0");
 
-  asm ("ldr	r1, =running_one\n\t"
-       "ldr	r1, [r1]\n\t"
-       "adds	r1, #20\n\t"
+  asm ("adds	r0, #20\n\t"
        /* Save registers onto CHX_THREAD struct.  */
-       "stm	r1!, {r4, r5, r6, r7}\n\t"
+       "stm	r0!, {r4, r5, r6, r7}\n\t"
        "mov	r2, r8\n\t"
        "mov	r3, r9\n\t"
        "mov	r4, r10\n\t"
        "mov	r5, r11\n\t"
        "mrs	r6, PSP\n\t" /* r13(=SP) in user space.  */
-       "stm	r1!, {r2, r3, r4, r5, r6}\n\t"
-       "ldr	r0, [r6]\n\t"
-       "subs	r1, #56\n\t"
-       "str	r1, [r6]"
+       "stm	r0!, {r2, r3, r4, r5, r6}\n\t"
+       "subs	r0, #56\n\t"
+       "str	r0, [r6]\n\t"
+       "mov	r0, r1"
        : "=r" (tp_next)
        : /* no input */
        : "cc", "r1", "r2", "r3", "r4", "r5", "r6", "memory");
