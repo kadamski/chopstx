@@ -1,6 +1,25 @@
 NEWS - Noteworthy changes
 
 
+* Major changes in Chopstx 3.0
+
+  Released 202X-XX-XX
+
+** SMP support for GNU/Linux emulation
+
+For possible use in multi-core system, SMP is supported.  With no
+actual hardware yet, it is started by GNU/Linux emulation.  A CPU is
+emulated by a POSIX thread.  It assumes availability of core-to-core
+interrupt which is emulated by SIGRTMIN.
+
+** API change for polling multiple events
+
+With SMP system in mind, it's difficult to keep the API of
+chopstx_poll.  New API with explicit pool instance (like the one
+referenced by a file descriptor in epoll of Linux) is better.  It
+reminds me KL1 system and its execution model: the goal pool.
+
+
 * Major changes in Chopstx 2.4
 
   Released 2022-07-18
