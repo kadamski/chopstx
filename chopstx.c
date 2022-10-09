@@ -2004,7 +2004,11 @@ chopstx_critical (void *func (void *), void *arg)
   void *p;
 
   chx_cpu_sched_lock ();
+  chx_spin_lock (&q_ready.lock);
+  chx_spin_lock (&running->lock);
   p = func (arg);
+  chx_spin_unlock (&running->lock);
+  chx_spin_unlock (&q_ready.lock);
   chx_cpu_sched_unlock ();
   return p;
 }
