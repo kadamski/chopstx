@@ -2002,6 +2002,7 @@ void *
 chopstx_critical (void *func (void *), void *arg)
 {
   void *p;
+  struct chx_thread *running = chx_running ();
 
   chx_cpu_sched_lock ();
   chx_spin_lock (&q_ready.lock);
