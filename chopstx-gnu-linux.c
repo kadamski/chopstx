@@ -577,6 +577,7 @@ chx_thread_start (voidfunc thread_entry, void *arg)
   chopstx_exit (ret);
 }
 
+/* Called with holding cpu_schec_lock.  */
 static struct chx_thread *
 chopstx_create_arch (uintptr_t stack_addr, size_t stack_size,
 		     voidfunc thread_entry, void *arg)
@@ -590,7 +591,6 @@ chopstx_create_arch (uintptr_t stack_addr, size_t stack_size,
    * Calling getcontext with sched_lock held, the context is with
    * signal blocked.  The sigmask will be cleared in chx_thread_start.
    */
-  chx_cpu_sched_lock ();
   memset (tp, 0, sizeof (struct chx_thread));
   getcontext (&tp->tc);
   tp->tc.uc_stack.ss_sp = (void *)stack_addr;
@@ -607,6 +607,5 @@ chopstx_create_arch (uintptr_t stack_addr, size_t stack_size,
    */
   makecontext (&tp->tc, (void (*)(void))chx_thread_start,
 	       2, thread_entry, arg);
-  chx_cpu_sched_unlock ();
   return tp;
 }
