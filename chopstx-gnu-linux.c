@@ -44,6 +44,9 @@
 #include <sys/time.h>
 
 static struct chx_spinlock chx_swapcontext_lock;
+static sigset_t ss_fully_blocked;
+
+
 #ifdef SMP
 #include <pthread.h>
 #ifndef MAX_CPU
@@ -195,13 +198,10 @@ chx_interrupt_controller_init (void)
 static void
 chx_cpu_sched_lock (void)
 {
-  sigset_t ss;
-
-  sigfillset (&ss);
 #ifdef SMP
-  pthread_sigmask (SIG_BLOCK, &ss, &ss_cur[cpu_id]);
+  pthread_sigmask (SIG_BLOCK, &ss_fully_blocked, &ss_cur[cpu_id]);
 #else
-  pthread_sigmask (SIG_BLOCK, &ss, &ss_cur);
+  pthread_sigmask (SIG_BLOCK, &ss_fully_blocked, &ss_cur);
 #endif
 }
 
@@ -417,6 +417,9 @@ static void
 chx_init_arch (struct chx_thread *tp)
 {
   struct sigaction sa;
+
+  sigfillset (&ss_fully_blocked);
+
 #ifdef SMP
   long i;
 
