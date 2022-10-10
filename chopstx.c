@@ -481,22 +481,22 @@ chx_possibly_preempted (struct chx_thread *running)
   if (running == NULL)
     return tp;
 
-  if (tp->prio > running->prio)
+  if (tp->prio <= running->prio)
     {
-      if (running->flag_sched_rr)
-	{
-	  chx_timer_dequeue (running);
-	  chx_ready_enqueue (running);
-	}
-      else
-	chx_ready_push (running);
-      chx_smp_kick_cpu ();
-      return tp;
+      chx_ready_enqueue (tp);
+      chx_spin_unlock (&tp->lock);
+      return NULL;
     }
 
-  chx_ready_enqueue (tp);
-  chx_spin_unlock (&tp->lock);
-  return NULL;
+  if (running->flag_sched_rr)
+    {
+      chx_timer_dequeue (running);
+      chx_ready_enqueue (running);
+    }
+  else
+    chx_ready_push (running);
+  chx_smp_kick_cpu ();
+  return tp;
 }
 
 
