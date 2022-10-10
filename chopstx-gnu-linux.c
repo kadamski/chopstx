@@ -43,7 +43,7 @@
 #include <stdlib.h>
 #include <sys/time.h>
 
-struct chx_spinlock chx_swapcontext_lock;
+static struct chx_spinlock chx_swapcontext_lock;
 #ifdef SMP
 #include <pthread.h>
 #ifndef MAX_CPU
