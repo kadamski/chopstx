@@ -1006,6 +1006,50 @@ requeue (struct chx_thread *tp)
   return NULL;
 }
 
+static void
+chx_priority_inheritance (struct chx_thread *running, struct chx_thread *tp0,
+			  chopstx_mutex_t *mutex0)
+{
+  while (tp0)
+    {
+      chx_spin_lock (&tp0->lock);
+      if (tp0->prio >= running->prio)
+	{
+	  chx_spin_unlock (&tp0->lock);
+	  if (mutex0)
+	    chx_spin_unlock (&mutex0->lock);
+	  break;
+	}
+
+      tp0->prio = running->prio;
+
+      if (tp0->state == THREAD_WAIT_TIME || tp0->state == THREAD_WAIT_POLL)
+	{
+	  tp0->v = (uintptr_t)chx_timer_dequeue (tp0);
+	  chx_ready_enqueue (tp0);
+	  chx_spin_unlock (&tp0->lock);
+	  if (mutex0)
+	    chx_spin_unlock (&mutex0->lock);
+	  break;
+	}
+      else
+	{
+	  struct chx_thread *tp1 = requeue (tp0);
+	  chopstx_mutex_t *mutex1 = NULL;
+
+	  if (tp0->state == THREAD_WAIT_MTX)
+	    mutex1 = (struct chx_mtx *)tp0->parent;
+	  chx_spin_unlock (&tp0->lock);
+	  if (mutex0)
+	    chx_spin_unlock (&mutex0->lock);
+	  tp0 = tp1;
+	  mutex0 = mutex1;
+	  if (mutex0)
+	    chx_spin_lock (&mutex0->lock);
+	}
+    }
+}
+
 /**
  * chopstx_mutex_lock - Lock the mutex
  * @mutex: Mutex
@@ -1016,12 +1060,9 @@ void
 chopstx_mutex_lock (chopstx_mutex_t *mutex)
 {
   struct chx_thread *running = chx_running ();
-  chopstx_mutex_t *mutex0;
 
   while (1)
     {
-      struct chx_thread *tp0;
-
       chx_cpu_sched_lock ();
       chx_spin_lock (&q_ready.lock);
       chx_spin_lock (&mutex->lock);
@@ -1044,53 +1085,7 @@ chopstx_mutex_lock (chopstx_mutex_t *mutex)
       ll_prio_enqueue ((struct chx_pq *)running, &mutex->q);
       running->state = THREAD_WAIT_MTX;
 
-      /* Priority inheritance.  */
-      tp0 = mutex->owner;
-      mutex0 = mutex;
-
-      while (tp0)
-	{
-	  chx_spin_lock (&tp0->lock);
-	  if (tp0->prio >= running->prio)
-	    {
-	      chx_spin_unlock (&tp0->lock);
-	      if (mutex0)
-		chx_spin_unlock (&mutex0->lock);
-	      break;
-	    }
-
-	  tp0->prio = running->prio;
-
-	  if (tp0->state == THREAD_WAIT_TIME
-	      || tp0->state == THREAD_WAIT_POLL)
-	    {
-	      tp0->v = (uintptr_t)chx_timer_dequeue (tp0);
-	      chx_ready_enqueue (tp0);
-	      chx_spin_unlock (&tp0->lock);
-	      if (mutex0)
-		chx_spin_unlock (&mutex0->lock);
-	      tp0 = NULL;
-	      mutex0 = NULL;
-	    }
-	  else
-	    {
-	      struct chx_thread *tp1 = requeue (tp0);
-	      chopstx_mutex_t *mutex1;
-
-	      if (tp0->state == THREAD_WAIT_MTX)
-		mutex1 = (struct chx_mtx *)tp0->parent;
-	      else
-		mutex1 = NULL;
-	      chx_spin_unlock (&tp0->lock);
-	      if (mutex0)
-		chx_spin_unlock (&mutex0->lock);
-	      tp0 = tp1;
-	      mutex0 = mutex1;
-	      if (mutex0)
-		chx_spin_lock (&mutex0->lock);
-	    }
-	}
-
+      chx_priority_inheritance (running, mutex->owner, mutex);
       chx_sched (running);
     }
 }
@@ -1509,7 +1504,6 @@ chopstx_join (chopstx_t thd, void **ret)
   if (tp->state != THREAD_EXITED)
     {
       struct chx_thread *running = chx_running ();
-      struct chx_thread *tp0 = tp;
 
       chx_spin_lock (&running->lock);
       if (running->flag_sched_rr)
@@ -1521,28 +1515,9 @@ chopstx_join (chopstx_t thd, void **ret)
       running->state = THREAD_WAIT_EXIT;
 
       tp->flag_join_req = 1;
+      chx_spin_unlock (&tp->lock);
 
-      /* Priority inheritance.  */
-      tp0 = tp;
-      while (1)
-	{
-	  struct chx_thread *tp1;
-
-	  if (tp0->prio >= running->prio)
-	    {
-	      chx_spin_unlock (&tp0->lock);
-	      break;
-	    }
-
-	  tp0->prio = running->prio;
-	  tp1 = requeue (tp0);
-	  chx_spin_unlock (&tp0->lock);
-	  tp0 = tp1;
-	  if (tp0 == NULL)
-	    break;
-
-	  chx_spin_lock (&tp0->lock);
-	}
+      chx_priority_inheritance (running, tp, NULL);
       r = chx_sched (running);
     }
   else
