@@ -548,24 +548,13 @@ preempted_context_switch (struct chx_thread *running,
 }
 
 
-static uintptr_t
+static void
 voluntary_context_switch (struct chx_thread *running,
 			  struct chx_thread *tp_next)
 {
-  struct chx_thread *tp;
-  uintptr_t v;
-
   chx_swapcontext (running, tp_next);
-
-  tp = chx_running ();
-
-  /* TP == RUNNING here.  */
-  chx_spin_lock (&tp->lock);
-  v = tp->v;
-  chx_spin_unlock (&tp->lock);
-  chx_cpu_sched_unlock ();
-  return v;
 }
+
 
 static void __attribute__((__noreturn__))
 chx_thread_start (voidfunc thread_entry, void *arg)
