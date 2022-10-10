@@ -419,6 +419,11 @@ chx_init_arch (struct chx_thread *tp)
   struct sigaction sa;
 
   sigfillset (&ss_fully_blocked);
+  /*
+   * Since call of chx_cpu_sched_lock before chx_init_arch
+   * doesn't work, we need to fix it here.
+   */
+  pthread_sigmask (SIG_BLOCK, &ss_fully_blocked, &ss_cur[cpu_id]);
 
 #ifdef SMP
   long i;
