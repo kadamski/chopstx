@@ -590,22 +590,12 @@ static uintptr_t __attribute__ ((noinline))
 chx_sched (struct chx_thread *running)
 {
   struct chx_thread *tp;
-  uintptr_t v;
 
   tp = chx_ready_pop ();
-  voluntary_context_switch (running, tp);
-
-  running = chx_running ();
-  chx_spin_lock (&q_ready.lock);
-  chx_spin_lock (&running->lock);
-  v = running->v;
-  chx_spin_unlock (&running->lock);
-  chx_spin_unlock (&q_ready.lock);
-  chx_cpu_sched_unlock ();
-  return v;
+  return voluntary_context_switch (running, tp);
 }
 
-static void __attribute__ ((noinline))
+static uintptr_t __attribute__ ((noinline))
 chx_yield (struct chx_thread *running)
 {
   struct chx_thread *tp;
@@ -613,11 +603,14 @@ chx_yield (struct chx_thread *running)
   tp = chx_ready_pop ();
   if (tp == NULL)
     {
+      uintptr_t v;
+
     no_yield:
+      v = running->v;
       chx_spin_unlock (&running->lock);
       chx_spin_unlock (&q_ready.lock);
       chx_cpu_sched_unlock ();
-      return;
+      return v;
     }
   else if (tp->prio <= running->prio)
     {
@@ -632,8 +625,7 @@ chx_yield (struct chx_thread *running)
       chx_ready_enqueue (running);
       chx_smp_kick_cpu ();
     }
-  voluntary_context_switch (running, tp);
-  chx_cpu_sched_unlock ();
+  return voluntary_context_switch (running, tp);
 }
 
 void
