@@ -595,7 +595,7 @@ chx_sched (struct chx_thread *running)
   return voluntary_context_switch (running, tp);
 }
 
-static uintptr_t __attribute__ ((noinline))
+static void __attribute__ ((noinline))
 chx_yield (struct chx_thread *running)
 {
   struct chx_thread *tp;
@@ -603,14 +603,11 @@ chx_yield (struct chx_thread *running)
   tp = chx_ready_pop ();
   if (tp == NULL)
     {
-      uintptr_t v;
-
     no_yield:
-      v = running->v;
       chx_spin_unlock (&running->lock);
       chx_spin_unlock (&q_ready.lock);
       chx_cpu_sched_unlock ();
-      return v;
+      return;
     }
   else if (tp->prio <= running->prio)
     {
@@ -618,14 +615,12 @@ chx_yield (struct chx_thread *running)
       chx_spin_unlock (&tp->lock);
       goto no_yield;
     }
-  else
-    {
-      if (running->flag_sched_rr)
-	chx_timer_dequeue (running);
-      chx_ready_enqueue (running);
-      chx_smp_kick_cpu ();
-    }
-  return voluntary_context_switch (running, tp);
+
+  if (running->flag_sched_rr)
+    chx_timer_dequeue (running);
+  chx_ready_enqueue (running);
+  chx_smp_kick_cpu ();
+  voluntary_context_switch (running, tp);
 }
 
 void
@@ -1086,6 +1081,7 @@ chopstx_mutex_lock (chopstx_mutex_t *mutex)
       running->state = THREAD_WAIT_MTX;
 
       chx_priority_inheritance (running, mutex->owner, mutex);
+      /* NOTE: sleep on multex lock is not a cancellation point.  */
       chx_sched (running);
     }
 }

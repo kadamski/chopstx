@@ -484,9 +484,11 @@ chx_init_arch (struct chx_thread *tp)
 }
 
 
-static void
+static uintptr_t
 chx_swapcontext (struct chx_thread *tp_prev, struct chx_thread *tp_next)
 {
+  uintptr_t v;
+
   chx_spin_lock (&chx_swapcontext_lock);
 #ifdef SMP
   chx_tp_prev = tp_prev;
@@ -508,6 +510,9 @@ chx_swapcontext (struct chx_thread *tp_prev, struct chx_thread *tp_next)
 	}
 #endif
     }
+
+  v = chx_tp_next->v;
+
 #ifdef SMP
   if (chx_tp_prev)
     chx_spin_unlock ((struct chx_spinlock *)&chx_tp_prev->lock);
@@ -515,6 +520,7 @@ chx_swapcontext (struct chx_thread *tp_prev, struct chx_thread *tp_next)
 #endif
   chx_spin_unlock (&chx_swapcontext_lock);
   chx_spin_unlock (&q_ready.lock);
+  return v;
 }
 
 static void
@@ -552,19 +558,7 @@ static uintptr_t
 voluntary_context_switch (struct chx_thread *running,
 			  struct chx_thread *tp_next)
 {
-  struct chx_thread *tp;
-  uintptr_t v;
-
-  chx_swapcontext (running, tp_next);
-
-  tp = chx_running ();
-
-  /* TP == RUNNING here.  */
-  chx_spin_lock (&tp->lock);
-  v = tp->v;
-  chx_spin_unlock (&tp->lock);
-  chx_cpu_sched_unlock ();
-  return v;
+  return chx_swapcontext (running, tp_next);
 }
 
 static void __attribute__((__noreturn__))
