@@ -1,3 +1,63 @@
+2022-10-25  NIIBE Yutaka  <gniibe@fsij.org>
+
+	* sys.h [MCU_GD32VF1]: Add the case for GD32VF1.
+
+	* mcu/usb-gd32vf103.c (MCU_GD32VF1): Remove.
+	(gd32vf_usb_init): Tweak the initialization.
+	(gd32vf_set_daddr): Likewise.
+	(gd32vf_prepare_ep0_setup_init): Remove.
+	(gd32vf_prepare_ep0_setup): Fix DOEP_CTL clearing bits.
+	(gd32vf_tx_fifo_flush): Tweak the waiting time.
+	(gd32vf_prepare_ep0_in): Fix DIEP_CTL clearing bits.
+	(usb_lld_ctrl_error): Call gd32vf_prepare_ep0_setup after
+	stalled ENDP.
+	(handle_in0, handle_out0): Likewise.
+	(usb_lld_init): Make sure the setup struct.
+	(usb_lld_event_handler): Fix suspend.
+	Fix DOEP_INTF clearing bits
+	Clear global IN NAK.
+	(usb_lld_reset): Follow the removal of
+	gd32vf_prepare_ep0_setup_init.
+	(usb_lld_setup_endp): Simply do nothing for ENDP0.
+	Fix DOEP_CTL setting.
+	Fix DIEP_CTL setting.
+	(usb_lld_tx_enable_buf): Write FIFO here.
+
+	* mcu/sys-stm32f103.h (BOARD_ID_LONGAN_NANO): New.
+
+	* mcu/sys-gd32vf103.h: New.
+	* mcu/sys-gd32vf103.c: New.
+
+	* mcu/stm32f103.h [MCU_GD32VF1] (EXTI2_IRQ, EXTI3_IRQ):
+	(EXTI4_IRQ): Define.
+
+	* mcu/gd32vf103.h (RCU_CFG0_ADC_MASK): Fix.
+	(RCU_CFG0_CKOUT_MASK, RCU_CFG0_PREDV0_LSB): New.
+	(RCU_CFG0_USBFSPSC_MASK, RCU_CFG0_ADC_CKAPB2_DIV8)
+	(RCU_CFG1_PREDV1_PREDV0_MASK): New.
+	(struct FLASH, FLASH): Define.
+	(struct SCB, SCB): Define.
+
+	* mcu/clk_gpio_init-gd32vf103.c (clock_init): Add ADC clock
+	initialization.
+
+	* example-lcd/Makefile (DEFS): Add -DMCU_GD32VF1.
+
+	* contrib/adc-gd32vf103.c: Use adc-stm32f103.c.
+	* contrib/adc-stm32f103.c (ADC_SMPR2_SMP_AN3): New.
+	(ADC_CHANNEL_IN3): New.
+	[MCU_GD32VF1] (INTR_REQ_DMA1_Channel1): Define.
+	(get_adc_config): Add the case of BOARD_ID_LONGAN_NANO.
+
+	* contrib/ackbtn-gd32vf103.c: Use ackbtn-stm32f103.c.
+	* contrib/ackbtn-stm32f103.c (ackbtn_init): Add the case
+	of BOARD_ID_LONGAN_NANO.
+	(ackbtn_init): Clear ready at the initialization.
+	(ackbtn_enable): Fix clearing the bits.
+	(ackbtn_disable): Likewise.
+
+	* board/board-longan-nano.h (MCU_STM32F1_GD32F1): New.
+
 2022-10-05  NIIBE Yutaka  <gniibe@fsij.org>
 
 	* chopstx.c (requeue): Fix the bug.  Old code depends on

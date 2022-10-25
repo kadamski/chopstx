@@ -33,7 +33,6 @@
 #include <chopstx.h>
 #include <mcu/gd32vf103.h>
 
-#define MCU_GD32VF1
 #include "usb_lld.h"
 
 /*
@@ -184,10 +183,9 @@ gd32vf_usb_init (void)
   /* Undocumented setting of PHY (GD specific).  */
   USB_G->GUSBCS |= (1 << 6);    /* Use embedded PHY */
 
-  /* Enable the transceiver.  */
-  USB_G->GCCFG = (1 << 19) | (1 << 18) | (1 << 16);
-  /* Disable monitoring VBUS pin (GD specific).  */
-  USB_G->GCCFG |= (1 << 21);
+  /* Enable the transceiver.
+     Disable monitoring VBUS pin (GD specific).  */
+  USB_G->GCCFG = (1 << 21) | (1 << 19) | (1 << 18) | (1 << 16);
 
   chopstx_usec_wait (20*1000);
 
@@ -221,6 +219,9 @@ gd32vf_usb_init (void)
   USB_D->DCTL &= ~(1 << 1);
 
   /* Interrupt setup.  */
+  USB_D->DIEPINTEN = 0;
+  USB_D->DOEPINTEN = 0;
+  USB_D->DAEPINTEN = 0;
 
   /* Transfer finished.  */
   USB_D->DIEPINTEN |= (1 << 0);
@@ -230,7 +231,7 @@ gd32vf_usb_init (void)
   USB_D->DAEPINTEN = (1 << 16) | (1 << 0);
 
   /* Wakeup and Suspend.  */
-  USB_G->GINTEN |= (1 << 31) | (1 << 11);
+  USB_G->GINTEN = (1 << 31) | (1 << 11);
   /* IN and OUT.  */
   USB_G->GINTEN |= (1 << 19) | (1 << 18);
   /* USB Reset.  */
@@ -250,17 +251,8 @@ gd32vf_usb_init (void)
 static void
 gd32vf_set_daddr (uint8_t daddr)
 {
-  USB_D->DCFG = (USB_D->DCFG & ~(0x7f << 4)) | (daddr << 4);
-}
-
-static void
-gd32vf_prepare_ep0_setup_init (void)
-{
-  /* Max packet length: 64-byte.  */
-  USB_I[0].DIEP_CTL &= ~0x03;
-
-  /* Clear global OUT NAK, IN NAK.  */
-  USB_D->DCTL |= (1 << 10) | (1 << 8);
+  USB_D->DCFG &= ~(0x7f << 4);
+  USB_D->DCFG |= (daddr << 4);
 }
 
 static void
@@ -278,7 +270,7 @@ gd32vf_prepare_ep0_setup (struct usb_dev *dev)
    */
   /* setup_cnt=1, packet_cnt=1, buflen=8-byte.  */
   USB_O[0].DOEP_LEN = (1 << 29) | (1 << 19) | 8;
-  USB_O[0].DOEP_CTL |= (1 << 31) | (1 << 26); /* Enable and Clear NAK */
+  USB_O[0].DOEP_CTL = (1 << 31) | (1 << 26); /* Enable and Clear NAK */
 }
 
 static void
@@ -286,8 +278,8 @@ gd32vf_tx_fifo_flush (int n)
 {
   USB_G->GRSTCTL = (n << 6) | (1 << 5);
   while ((USB_G->GRSTCTL & (1 << 5)))
-    chopstx_usec_wait (100);
-  chopstx_usec_wait (100);
+    chopstx_usec_wait (3);
+  chopstx_usec_wait (3);
 }
 
 static void
@@ -326,7 +318,7 @@ gd32vf_prepare_ep0_in (uint8_t len)
   USB_I[0].DIEP_LEN = (1 << 19) | len; /* 1-packet, len-byte */
   if (len)
     USB_D->DIEPFEINTEN |= (1 << 0);
-  USB_I[0].DIEP_CTL |= (1 << 31) | (1 << 26); /* Enable and Clear NAK */
+  USB_I[0].DIEP_CTL = (1 << 31) | (1 << 26); /* Enable and Clear NAK */
 }
 
 /* Note: No support of multiple DATA transfer.  It's by DATA1 only.  */
@@ -370,7 +362,7 @@ gd32vf_ep_stall (uint8_t n, int dir)
 {
   if (dir == USB_DIR_IN || dir == USB_DIR_BOTH)
     {
-      /* When it's active, disable it.  */
+      /* When it's enabled, disable it.  */
       if (USB_I[n].DIEP_CTL & (1 << 31))
 	USB_I[n].DIEP_CTL |= (1 << 30);
 
@@ -424,6 +416,7 @@ usb_lld_ctrl_error (struct usb_dev *dev)
 {
   dev->state = STALLED;
   gd32vf_ep_stall (ENDP0, USB_DIR_BOTH);
+  gd32vf_prepare_ep0_setup (dev);
 }
 
 int
@@ -440,10 +433,22 @@ usb_lld_ctrl_ack (struct usb_dev *dev)
 void
 usb_lld_init (struct usb_dev *dev, uint8_t feature)
 {
+  int i;
+
   usb_lld_set_configuration (dev, 0);
   dev->feature = feature;
   dev->state = WAIT_SETUP;
   gd32vf_usb_init ();
+  dev->ctrl_data.addr = (uint8_t *)&dev->dev_req;
+  dev->ctrl_data.len = 8;
+  dev->ctrl_data.require_zlp = 0;
+  for (i = 0; i < 3; i++)
+    {
+      dev->epctl_rx[i].addr = NULL;
+      dev->epctl_tx[i].addr = NULL;
+      dev->epctl_rx[i].len = 0;
+      dev->epctl_tx[i].len = 0;
+    }
 }
 
 
@@ -603,7 +608,10 @@ usb_lld_event_handler (struct usb_dev *dev)
       debug ("\rsuspend");
       /* suspend */
       USB_G->GINTF = (1 << 11);
-      return USB_MAKE_EV (USB_EVENT_DEVICE_SUSPEND);
+      if ((USB_D->DSTAT & 1))
+	return USB_MAKE_EV (USB_EVENT_DEVICE_SUSPEND);
+      else
+	return USB_EVENT_OK;
     }
   else if ((gintr & (1 << 19)))
     {
@@ -615,19 +623,19 @@ usb_lld_event_handler (struct usb_dev *dev)
 	    if ((USB_O[ep_num].DOEP_INTF & (1 << 6)))
 	      {
 		/* Multiple SETUP packets received.  */
-		USB_O[ep_num].DOEP_INTF |= (1 << 6);
+		USB_O[ep_num].DOEP_INTF = (1 << 6);
 	      }
 #endif
 
 	    if (ep_num == 0 && (USB_O[ep_num].DOEP_INTF & (1 << 3)))
 	      {
 		int r = USB_MAKE_EV (handle_setup0 (dev));
-		USB_O[ep_num].DOEP_INTF |= (1 << 3);
+		USB_O[ep_num].DOEP_INTF = (1 << 3);
 		return r;
 	      }
 	    else if ((USB_O[ep_num].DOEP_INTF & (1 << 0)))
 	      {
-		USB_O[ep_num].DOEP_INTF |= (1 << 0);
+		USB_O[ep_num].DOEP_INTF = (1 << 0);
 		debug ("O %d", ep_num);
 		if (ep_num == 0)
 		  {
@@ -704,12 +712,16 @@ usb_lld_event_handler (struct usb_dev *dev)
   else if ((gintr & (1 << 13)))
     {
       /* Speed enumeration: HS/FS negotiation.  */
+      /* Clear global IN NAK.  */
+      USB_D->DCTL &= ~(1 << 8);
+      USB_D->DCTL |= (1 << 8);
       /*
        * Set the UTT (USB turnaround time).
        * Value is not documented for GD.
-       * Need change for STM32.
+       * Need change for STM32 (when ported).
        */
-      USB_G->GUSBCS |= 0x05 << 10;
+      USB_G->GUSBCS &= ~(0x0f << 10);
+      USB_G->GUSBCS |= (0x05 << 10);
       USB_G->GINTF = (1 << 13);
       debug ("spd=FS");
     }
@@ -1098,6 +1110,7 @@ handle_in0 (struct usb_dev *dev)
     {
       dev->state = STALLED;
       gd32vf_ep_stall (ENDP0, USB_DIR_BOTH);
+      gd32vf_prepare_ep0_setup (dev);
     }
 
   return r;
@@ -1126,6 +1139,7 @@ handle_out0 (struct usb_dev *dev)
        */
       dev->state = STALLED;
       gd32vf_ep_stall (ENDP0, USB_DIR_BOTH);
+      gd32vf_prepare_ep0_setup (dev);
     }
 }
 
@@ -1143,7 +1157,10 @@ usb_lld_reset (struct usb_dev *dev, uint8_t feature)
   gd32vf_tx_fifo_flush (0);
 
   gd32vf_set_daddr (0);
-  gd32vf_prepare_ep0_setup_init ();
+
+  /* Max packet length: 64-byte.  */
+  USB_I[0].DIEP_CTL &= ~0x03;
+
   gd32vf_prepare_ep0_setup (dev);
 }
 
@@ -1152,12 +1169,20 @@ usb_lld_setup_endp (struct usb_dev *dev, int n, int ep_type,
 		    int rx_en, int tx_en)
 {
   (void)dev;
+
+  if (n == ENDP0)
+    return;
+
   if (rx_en)
     {
       if ((USB_O[n].DOEP_CTL & (1 << 15)) == 0)
-	/* Select DATA0 and EP_TYPE.  */
-	USB_O[n].DOEP_CTL |= ((1 << 28) | (ep_type << 18)
-			      | (1 << 27) | (1 << 15) | 64);
+	{
+	  /* Select DATA0 and EP_TYPE.  */
+	  USB_O[n].DOEP_CTL = ((1 << 28) | (1 << 27)
+			       | (ep_type << 18)
+			       | (1 << 15) | 64);
+	  USB_O[n].DOEP_CTL &= ~(1 << 21);
+	}
 
       USB_D->DAEPINTEN |= (1 << (16 + n));
     }
@@ -1171,8 +1196,10 @@ usb_lld_setup_endp (struct usb_dev *dev, int n, int ep_type,
 	  /* Select DATA0, TX FIFO number, and EP_TYPE.	 */
 	  /* Initially, no data to send, respond with NAK.
 	     Activate the endpoint.  */
-	  USB_I[n].DIEP_CTL = ((1 << 28) | (n << 22) | (ep_type << 18)
-			       | (1 << 27) | (1 << 15) | 64);
+	  USB_I[n].DIEP_CTL = ((1 << 28) | (1 << 27)
+			       | (n << 22) | (ep_type << 18)
+			       | (1 << 15) | 64);
+	  USB_I[n].DIEP_CTL &= ~(1 << 21);
 	}
 
       USB_D->DAEPINTEN |= (1 << n);
@@ -1266,6 +1293,6 @@ usb_lld_tx_enable_buf (struct usb_dev *dev, int n, const void *buf, size_t len)
   debug ("\rtx %d (%d)", n, len);
   USB_I[n].DIEP_LEN = (1 << 19) | len; /* 1-packet, len-byte */
   if (len)
-    USB_D->DIEPFEINTEN |= (1 << n);
+    gd32vf_tx_fifo_write (n, buf, len);
   USB_I[n].DIEP_CTL |= (1 << 31) | (1 << 26); /* Enable and Clear NAK */
 }

@@ -66,6 +66,15 @@ ackbtn_init (chopstx_intr_t *intr)
       pin_config |= PINCFG_EDGE_RISING;
       break;
 
+    case BOARD_ID_LONGAN_NANO:
+      /* PA4 can be connected to a hall sensor or a switch */
+      afio_exticr_index = 1;
+      afio_exticr_extiX_pY = AFIO_EXTICR2_EXTI4_PA;
+      irq_num = EXTI4_IRQ;
+      pin_config = 0x0010; /* EXTI_PR_PR4 == EXTI_IMR_MR4 == EXTI_RTSR_TR4 */
+      pin_config |= PINCFG_EDGE_RISING;
+      break;
+
     case BOARD_ID_FST_01SZ:
     default:
       /* PA3 is connected to a hall sensor DRV5032FA */
@@ -85,13 +94,14 @@ ackbtn_init (chopstx_intr_t *intr)
   EXTI->IMR &= ~(pin_config & ~PINCFG_EDGE);
 
   chopstx_claim_irq (intr, irq_num);
+  intr->ready = 0;
 }
 
 void
 ackbtn_enable (void)
 {
   /* Clear pending interrupt */
-  EXTI->PR |= (pin_config & ~PINCFG_EDGE);
+  EXTI->PR = (pin_config & ~PINCFG_EDGE);
   /* Enable interrupt, clearing the mask */
   EXTI->IMR |= (pin_config & ~PINCFG_EDGE);
 
@@ -108,7 +118,7 @@ ackbtn_disable (void)
   /* Disable interrupt having the mask */
   EXTI->IMR &= ~(pin_config & ~PINCFG_EDGE);
   /* Clear pending interrupt */
-  EXTI->PR |= (pin_config & ~PINCFG_EDGE);
+  EXTI->PR = (pin_config & ~PINCFG_EDGE);
 
   /* Disable edge detection */
   EXTI->RTSR &= ~(pin_config & ~PINCFG_EDGE);

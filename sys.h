@@ -6,6 +6,8 @@
 #include "mcu/sys-stm32f0.h"
 #elif defined(MCU_STM32L4)
 #include "mcu/sys-stm32l4.h"
+#elif defined(MCU_GD32VF1)
+#include "mcu/sys-gd32vf103.h"
 #else
 #include "mcu/sys-stm32f103.h"
 #endif

@@ -48,6 +48,7 @@
 #define ADC_SMPR2_SMP_AN0(n)    ((n) << 0)
 #define ADC_SMPR2_SMP_AN1(n)    ((n) << 3)
 #define ADC_SMPR2_SMP_AN2(n)    ((n) << 6)
+#define ADC_SMPR2_SMP_AN3(n)    ((n) << 9)
 #define ADC_SMPR2_SMP_AN8(n)    ((n) << 24)
 #define ADC_SMPR2_SMP_AN9(n)    ((n) << 27)
 
@@ -63,6 +64,7 @@
 #define ADC_CHANNEL_IN0         0
 #define ADC_CHANNEL_IN1         1
 #define ADC_CHANNEL_IN2         2
+#define ADC_CHANNEL_IN3         3
 #define ADC_CHANNEL_IN8         8
 #define ADC_CHANNEL_IN9         9
 #define ADC_CHANNEL_IN10        10
@@ -102,7 +104,11 @@
 /*
  * ADC finish interrupt
  */
+#ifdef MCU_GD32VF1
+#define INTR_REQ_DMA1_Channel1 30
+#else
 #define INTR_REQ_DMA1_Channel1 11
+#endif
 
 static chopstx_intr_t adc_intr;
 
@@ -183,6 +189,14 @@ get_adc_config (uint32_t config[4])
 		| ADC_SMPR2_SMP_AN9(ADC_SAMPLE_1P5);
       config[3] = ADC_SQR3_SQ1_N(ADC_CHANNEL_IN8)
 		| ADC_SQR3_SQ2_N(ADC_CHANNEL_IN9);
+      break;
+
+    case BOARD_ID_LONGAN_NANO:
+      config[0] = 0;
+      config[1] = ADC_SMPR2_SMP_AN0(ADC_SAMPLE_1P5)
+		| ADC_SMPR2_SMP_AN3(ADC_SAMPLE_1P5);
+      config[3] = ADC_SQR3_SQ1_N(ADC_CHANNEL_IN0)
+		| ADC_SQR3_SQ2_N(ADC_CHANNEL_IN3);
       break;
 
     case BOARD_ID_CQ_STARM:

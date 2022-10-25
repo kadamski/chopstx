@@ -4,6 +4,8 @@
 
 #define MCU_CORE_BUMBLEBEE 1
 #define MCU_GD32VF1        1
+#define MCU_STM32F1_GD32F1 1    /* ADC is as same as GD32F1 */
+
 /*
  * XTAL clock =  8 MHz
  * Core clock = 96 MHz
@@ -11,7 +13,7 @@
  * APB1 clock = 48 MHz
  * APB2 clock = 96 MHz
  * USB clock  = 48 MHz
- * ADC clock  = ???
+ * ADC clock  = 12 MHz
  */
 
 /* HXTAL 8MHz input => PLL output = 8 * 12 = 96 MHz */
@@ -25,10 +27,11 @@
 /*
  * Port A setup.
  *
+ * PA0  - input with pull-up: AN0 for NeuG
  * PA1  - Push-pull output 2MHz 1 default (LED green 0: ON 1: OFF)
  * PA2  - Push-pull output 2MHz 1 default (LED blue  0: ON 1: OFF)
- * PA3  - 
- * PA4  - <Can be used for GPIO>
+ * PA3  - input with pull-up: AN3 for NeuG
+ * PA4  - <Can be used for GPIO>: Ack button
  * PA5  - AF output push-pull 50MHz: SPI0_SCK
  * PA6  - Input pull-up: SPI0_MISO (master)
  * PA7  - AF output push-pull 50MHz: SPI0_MOSI (master)

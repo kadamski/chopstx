@@ -571,6 +571,11 @@ static struct EXTI *const EXTI = (struct EXTI *)EXTI_BASE;
 #define  EXTI_PR_PR18       0x00040000
 #define  EXTI_PR_PR19       0x00080000
 
+#ifdef MCU_GD32VF1
+#define EXTI2_IRQ   27
+#define EXTI3_IRQ   28
+#define EXTI4_IRQ   29
+#else
 #define EXTI0_IRQ    6
 #define EXTI1_IRQ    7
 #define EXTI2_IRQ    8
@@ -580,6 +585,7 @@ static struct EXTI *const EXTI = (struct EXTI *)EXTI_BASE;
 #define TIM2_IRQ    28
 #define TIM3_IRQ    29
 #define TIM4_IRQ    30
+#endif
 
 struct AFIO
 {
