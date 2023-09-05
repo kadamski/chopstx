@@ -1,6 +1,13 @@
 NEWS - Noteworthy changes
 
 
+* Major changes in Chopstx 2.5
+
+** GD32VF103 support
+GD32VF103 is a variant of GD32F103 with RISC-V core by Giga Device,
+which can run at 96MHz.
+
+
 * Major changes in Chopstx 2.4
 
   Released 2022-07-18

@@ -1,6 +1,6 @@
 Chopstx - Threads and only Threads
-							 Version 2.4
-							  2022-07-18
+							 Version 2.5
+							  2023-09-05
 							Niibe Yutaka
 					     Flying Stone Technology
 
@@ -75,7 +75,5 @@ Convenience function to determine the bottom of thread stack,
 configuration of thread size by compiler's output would be next things
 to be done.
 
-We have an experimental SMP port for Cortex-A7.  For SMP, more careful
-considerations for shared access to objects of struct chx_pq is
-needed.  So, modifications required will not be small.
+We have an experimental SMP port in master.
 -- 

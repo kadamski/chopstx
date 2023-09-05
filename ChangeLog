@@ -1,3 +1,8 @@
+2023-09-05  NIIBE Yutaka  <gniibe@fsij.org>
+
+	* VERSION: 2.5
+	* doc/chopstx.texi (VERSION): 2.5.
+
 2022-10-25  NIIBE Yutaka  <gniibe@fsij.org>
 
 	* sys.h [MCU_GD32VF1]: Add the case for GD32VF1.
