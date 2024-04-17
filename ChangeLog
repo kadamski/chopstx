@@ -1,3 +1,7 @@
+2024-04-17  NIIBE Yutaka  <gniibe@fsij.org>
+
+	* rules.mk (LDFLAGS): Fix for newer GCC and picolibc.
+
 2023-09-05  NIIBE Yutaka  <gniibe@fsij.org>
 
 	* VERSION: 2.5

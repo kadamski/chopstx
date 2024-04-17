@@ -66,7 +66,8 @@ SPECS = --specs=picolibc.specs
 LDFLAGS   = $(MCFLAGS) -nostartfiles -T$(LDSCRIPT) \
     -Wl,-Map=$(BUILDDIR)/$(PROJECT).map,--cref,--no-warn-mismatch,--gc-sections
 ifeq ($(ARCH),riscv32)
-MCFLAGS   = -march=rv32imac -mabi=ilp32
+MCFLAGS   = -march=rv32imac_zicsr -mabi=ilp32
+LDFLAGS   += -march=rv32imac -mabi=ilp32 # Override arch selection in MCFLAGS
 else
 MCFLAGS   = -mcpu=$(MCU) -masm-syntax-unified
 endif
