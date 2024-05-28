@@ -65,6 +65,14 @@ ackbtn_init (chopstx_intr_t *intr)
       pin_config = 0x0004; /* EXTI_PR_PR2 == EXTI_IMR_MR2 == EXTI_RTSR_TR2 */
       pin_config |= PINCFG_EDGE_RISING;
       break;
+    case BOARD_ID_BLUE_PILL:
+      /* Switch connected to PA5 */
+      afio_exticr_index = 0;
+      afio_exticr_extiX_pY = AFIO_EXTICR2_EXTI5_PA;
+      irq_num = EXTI9_5_IRQ;
+      pin_config = 0x0020;
+      pin_config |= PINCFG_EDGE_RISING;
+      break;
 
     case BOARD_ID_FST_01SZ:
     default:
